@@ -1,0 +1,36 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+input, select, textarea, button {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #f5f5f5;
+}
+
+button:hover {
+  background: #e8e8e8;
+}
+
+h2, h3 {
+  margin-top: 0;
+}
+
+.status-ok { color: #1a7a1a; }
+.status-warn { color: #b87a00; }
+.status-error { color: #cc0000; }

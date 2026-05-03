@@ -1,0 +1,43 @@
+{
+  "name": "meal-planner",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . --ext .ts,.vue"
+  },
+  "dependencies": {
+    "dexie": "^4.4.2",
+    "pinia": "^3.0.4",
+    "uuid": "^14.0.0",
+    "vue": "^3.5.32",
+    "vue-router": "^4.6.4",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.2",
+    "@types/uuid": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.4.10",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.9.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.5",
+    "vue-tsc": "^3.2.7",
+    "workbox-window": "^7.4.0"
+  }
+}
