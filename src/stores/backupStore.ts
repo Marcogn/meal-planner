@@ -6,6 +6,8 @@ const LS_DISMISS_KEY = 'menuPlanner.backupReminderDismissedAt';
 
 /** Numero di giorni oltre i quali l'app mostra il reminder di backup. */
 export const BACKUP_REMINDER_DAYS = 14;
+/** BACKUP_REMINDER_DAYS convertito in millisecondi. */
+const BACKUP_REMINDER_MS = BACKUP_REMINDER_DAYS * 24 * 60 * 60 * 1000;
 
 export const useBackupStore = defineStore('backup', () => {
   // Timestamp (ms) dell'ultimo backup riuscito, o null se mai eseguito.
@@ -52,7 +54,7 @@ export const useBackupStore = defineStore('backup', () => {
       return false;
     }
     const msElapsed = Date.now() - dismissedAt.value;
-    return msElapsed < BACKUP_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+    return msElapsed < BACKUP_REMINDER_MS;
   });
 
   /**

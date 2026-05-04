@@ -225,6 +225,13 @@ h2 {
   opacity: 1;
 }
 
+.reminder-dismiss:focus-visible {
+  outline: 2px solid #5d4037;
+  outline-offset: 2px;
+  border-radius: 2px;
+  opacity: 1;
+}
+
 .reminder-icon {
   flex-shrink: 0;
 }
