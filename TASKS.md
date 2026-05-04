@@ -103,7 +103,8 @@
 
 > _Più complesso del backup: gestione granulare slot-per-slot._
 
-- [ ] **T6.1** `exportWeek(weekId)` e `exportWeeks(weekIds)`: ritorna blob JSON con elements referenziati + weeks.
+- [x] **T6.1** `exportWeek(weekId)` e `exportWeeks(weekIds)`: ritorna blob JSON con elements referenziati + weeks.
+  - `exportWeeks(weekIds)` in `backup.ts`: legge solo le settimane richieste, raccoglie gli elementId referenziati, include solo quegli Elementi. `exportWeek` è un wrapper di convenienza. 8 nuovi test (settimane mancanti, elementi deduplicati, elementi eliminati, ecc.) — 106 test totali passano.
 - [ ] **T6.2** UI: dalla vista settimanale, pulsante "Condividi" con opzioni "questa settimana" / "intervallo".
 - [ ] **T6.3** UI Import condivisione: file picker, parsing, anteprima del menù ricevuto.
 - [ ] **T6.4** Modalità import: radio "Sovrascrivi tutto" / "Scegli slot per slot".

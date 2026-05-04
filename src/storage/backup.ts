@@ -91,6 +91,66 @@ export const BackupDataSchema = z.object({
 // ---- Export ----
 
 /**
+ * Raccoglie tutti gli elementId referenziati dai piatti nelle settimane date.
+ * Ritorna un Set di ID univoci.
+ */
+function collectReferencedElementIds(weeks: Week[]): Set<string> {
+  const ids = new Set<string>();
+  for (const week of weeks) {
+    for (const slot of week.slots) {
+      for (const dish of slot.dishes) {
+        for (const id of dish.elementIds) {
+          ids.add(id);
+        }
+      }
+    }
+  }
+  return ids;
+}
+
+/**
+ * Esporta le settimane indicate (per weekId) con **solo** gli Elementi
+ * referenziati dai piatti in quelle settimane. Le settimane non presenti nel
+ * DB vengono silenziosamente ignorate.
+ *
+ * Usato per la condivisione di menù (T6.1 / T6.2). Il formato del Blob
+ * è lo stesso del backup completo (`BackupData`), quindi l'import
+ * funziona con le stesse funzioni di validazione.
+ */
+export async function exportWeeks(weekIds: string[]): Promise<Blob> {
+  // 1. Leggi solo le settimane richieste (ignora quelle non nel DB)
+  const weeks = (
+    await Promise.all(weekIds.map((id) => appDb.weeks.get(id)))
+  ).filter((w): w is Week => w !== undefined);
+
+  // 2. Raccogli gli element ID referenziati
+  const referencedIds = collectReferencedElementIds(weeks);
+
+  // 3. Leggi dal DB solo gli Elementi effettivamente referenziati
+  const elements =
+    referencedIds.size > 0
+      ? await appDb.elements.where('id').anyOf([...referencedIds]).toArray()
+      : [];
+
+  const data: BackupData = {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    elements,
+    weeks,
+  };
+
+  return new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+}
+
+/**
+ * Esporta una singola settimana. Wrapper di `exportWeeks` per comodità.
+ */
+export async function exportWeek(weekId: string): Promise<Blob> {
+  return exportWeeks([weekId]);
+}
+
+/**
  * Legge tutti gli Elementi e le Settimane dal DB e ritorna un Blob JSON
  * nel formato backup `{ format, version, exportedAt, elements, weeks }`.
  */

@@ -7,6 +7,8 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   exportAll,
+  exportWeek,
+  exportWeeks,
   importAll,
   BackupImportError,
   BACKUP_FORMAT,
@@ -224,5 +226,109 @@ describe('importAll', () => {
     expect(elements[0].name).toBe('pesce');
     const week = await getWeek('2026-W20');
     expect(week?.slots[0].dishes[0].name).toBe('salmone');
+  });
+});
+
+// ---- Test exportWeeks / exportWeek ----
+
+describe('exportWeeks', () => {
+  it('esporta solo le settimane richieste', async () => {
+    const dish1 = { id: uuidv4(), name: 'pasta', elementIds: [] };
+    const dish2 = { id: uuidv4(), name: 'riso', elementIds: [] };
+    await addDishToSlot('2026-W01', 1, 'pranzo', dish1);
+    await addDishToSlot('2026-W02', 2, 'cena', dish2);
+
+    const blob = await exportWeeks(['2026-W01']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(1);
+    expect(data.weeks[0].id).toBe('2026-W01');
+  });
+
+  it('include solo gli Elementi referenziati dalle settimane esportate', async () => {
+    const el1 = await createElement({ name: 'formaggio', maxFrequencyPerWeek: 1 });
+    const el2 = await createElement({ name: 'verdura', maxFrequencyPerWeek: 'unlimited' });
+    const dish1 = { id: uuidv4(), name: 'caprese', elementIds: [el1.id] };
+    const dish2 = { id: uuidv4(), name: 'insalata', elementIds: [el2.id] };
+    await addDishToSlot('2026-W10', 1, 'pranzo', dish1);
+    await addDishToSlot('2026-W11', 2, 'cena', dish2);
+
+    // Esporta solo W10: deve contenere solo el1
+    const blob = await exportWeeks(['2026-W10']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(1);
+    expect(data.elements).toHaveLength(1);
+    expect(data.elements[0].id).toBe(el1.id);
+  });
+
+  it('settimana con piatti senza elementi → elements vuoto', async () => {
+    const dish = { id: uuidv4(), name: 'acqua', elementIds: [] };
+    await addDishToSlot('2026-W12', 3, 'pranzo', dish);
+
+    const blob = await exportWeeks(['2026-W12']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(1);
+    expect(data.elements).toHaveLength(0);
+  });
+
+  it('weekId non presente nel DB → viene ignorato silenziosamente', async () => {
+    const blob = await exportWeeks(['2026-W99']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(0);
+    expect(data.elements).toHaveLength(0);
+  });
+
+  it('esporta più settimane con elementi referenziati deduplificati', async () => {
+    const el = await createElement({ name: 'carne bianca', maxFrequencyPerWeek: 3 });
+    const dish1 = { id: uuidv4(), name: 'pollo', elementIds: [el.id] };
+    const dish2 = { id: uuidv4(), name: 'tacchino', elementIds: [el.id] };
+    await addDishToSlot('2026-W20', 1, 'pranzo', dish1);
+    await addDishToSlot('2026-W21', 2, 'cena', dish2);
+
+    const blob = await exportWeeks(['2026-W20', '2026-W21']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(2);
+    // Elemento referenziato in entrambe le settimane → compare una sola volta
+    expect(data.elements).toHaveLength(1);
+    expect(data.elements[0].id).toBe(el.id);
+  });
+
+  it('elemento eliminato dal DB non viene incluso nell\'export', async () => {
+    const el = await createElement({ name: 'pesce', maxFrequencyPerWeek: 2 });
+    const dish = { id: uuidv4(), name: 'trota', elementIds: [el.id] };
+    await addDishToSlot('2026-W30', 1, 'pranzo', dish);
+    // Simula eliminazione dell'elemento dal DB
+    await appDb.elements.delete(el.id);
+
+    const blob = await exportWeeks(['2026-W30']);
+    const data = await parseBlob(blob);
+    expect(data.weeks).toHaveLength(1);
+    expect(data.elements).toHaveLength(0);
+  });
+
+  it('il Blob ha il formato e la versione corretti', async () => {
+    const blob = await exportWeeks([]);
+    const data = await parseBlob(blob);
+    expect(data.format).toBe(BACKUP_FORMAT);
+    expect(data.version).toBe(BACKUP_VERSION);
+    expect(blob.type).toBe('application/json');
+  });
+});
+
+describe('exportWeek', () => {
+  it('è un alias di exportWeeks con un singolo weekId', async () => {
+    const el = await createElement({ name: 'riso', maxFrequencyPerWeek: 2 });
+    const dish = { id: uuidv4(), name: 'risotto', elementIds: [el.id] };
+    await addDishToSlot('2026-W40', 4, 'pranzo', dish);
+
+    const blobSingle = await exportWeek('2026-W40');
+    const blobMulti = await exportWeeks(['2026-W40']);
+
+    const dataSingle = await parseBlob(blobSingle);
+    const dataMulti = await parseBlob(blobMulti);
+
+    // Il contenuto deve essere equivalente (stessi elements e weeks)
+    expect(dataSingle.weeks).toHaveLength(dataMulti.weeks.length);
+    expect(dataSingle.elements).toHaveLength(dataMulti.elements.length);
+    expect(dataSingle.weeks[0].id).toBe(dataMulti.weeks[0].id);
   });
 });
