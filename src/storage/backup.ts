@@ -246,7 +246,185 @@ export interface SlotKey {
   meal: MealType;
 }
 
+// T6.6 — Analisi e risoluzione degli Elementi durante l'import condiviso
+
+/**
+ * Un conflitto di nome: un Elemento del file e uno locale hanno lo stesso nome
+ * (case-insensitive) ma `maxFrequencyPerWeek` diversa.
+ */
+export interface ConflictInfo {
+  fileElement: Element;
+  localElement: Element;
+}
+
+/**
+ * Risultato dell'analisi degli Elementi nel file rispetto al DB locale.
+ *
+ * - `missing`: presenti nel file, assenti nel DB locale sia per ID che per nome.
+ * - `conflicts`: stesso nome locale ma frequenza diversa.
+ * - `autoRemap`: stesso nome + stessa frequenza ma ID diverso → rimappatura
+ *   automatica senza richiedere azione all'utente.
+ */
+export interface ElementImportAnalysis {
+  missing: Element[];
+  conflicts: ConflictInfo[];
+  autoRemap: Map<string, string>; // fileElementId → localElementId
+}
+
+/**
+ * Risoluzione per un singolo conflitto di nome.
+ *
+ * - `keep-local`: mantieni il tuo elemento (le dish importate vengono rimappate
+ *   al localElement.id).
+ * - `overwrite`: aggiorna la frequenza del tuo elemento al valore del file
+ *   (le dish importate vengono rimappate al localElement.id).
+ * - `rename`: aggiungi l'elemento del file con un nuovo nome (le dish importate
+ *   usano il fileElement.id, che verrà inserito nel DB con il nuovo nome).
+ */
+export interface ConflictDecision {
+  fileElementId: string;
+  resolution: 'keep-local' | 'overwrite' | 'rename';
+  /** Obbligatorio quando `resolution === 'rename'`. */
+  newName?: string;
+}
+
+/** Decisioni dell'utente per la gestione degli Elementi durante l'import. */
+export interface ElementImportDecisions {
+  /** Subset di `ElementImportAnalysis.missing[].id` che l'utente vuole aggiungere. */
+  addMissingIds: string[];
+  /** Una decisione per ogni conflitto. */
+  conflicts: ConflictDecision[];
+}
+
 // ---- Import (API pubblica) ----
+
+/**
+ * Analizza gli Elementi del file rispetto al DB locale e li classifica in:
+ * - `missing`: nel file, non trovati nel DB né per ID né per nome.
+ * - `conflicts`: stesso nome ma `maxFrequencyPerWeek` diversa.
+ * - `autoRemap`: stesso nome + stessa frequenza ma ID diverso
+ *   (rimappatura automatica, non richiede azione utente).
+ */
+export async function analyzeElementImport(
+  data: BackupData,
+): Promise<ElementImportAnalysis> {
+  const localElements = await appDb.elements.toArray();
+  const localById = new Map(localElements.map((e) => [e.id, e]));
+  const localByName = new Map(
+    localElements.map((e) => [e.name.toLowerCase().trim(), e]),
+  );
+
+  const missing: Element[] = [];
+  const conflicts: ConflictInfo[] = [];
+  const autoRemap = new Map<string, string>();
+
+  for (const fileEl of data.elements) {
+    // Già presente per ID → nessun problema
+    if (localById.has(fileEl.id)) continue;
+
+    const localMatch = localByName.get(fileEl.name.toLowerCase().trim());
+
+    if (!localMatch) {
+      // Nessun match per nome → mancante
+      missing.push(fileEl);
+    } else if (localMatch.maxFrequencyPerWeek !== fileEl.maxFrequencyPerWeek) {
+      // Stesso nome, frequenza diversa → conflitto
+      conflicts.push({ fileElement: fileEl, localElement: localMatch });
+    } else {
+      // Stesso nome + stessa frequenza + ID diverso → auto-remap silenzioso
+      autoRemap.set(fileEl.id, localMatch.id);
+    }
+  }
+
+  return { missing, conflicts, autoRemap };
+}
+
+/**
+ * Applica le decisioni dell'utente per la gestione degli Elementi mancanti e
+ * conflittuali.
+ *
+ * - Scrive nel DB gli elementi da aggiungere/aggiornare.
+ * - Costruisce la mappa di rimappatura ID (fileId → localId) partendo
+ *   dall'`autoRemap` e dalle decisioni di conflitto.
+ * - Ritorna una copia del `BackupData` con gli `elementIds` delle dishes
+ *   rimappati, pronta per essere passata a `importWeeks`.
+ *
+ * È sicuro chiamare questa funzione anche con `decisions` vuote (es. quando
+ * `missing` e `conflicts` sono entrambi vuoti): viene applicata solo la
+ * rimappatura automatica.
+ */
+export async function applyElementDecisions(
+  data: BackupData,
+  analysis: ElementImportAnalysis,
+  decisions: ElementImportDecisions,
+): Promise<BackupData> {
+
+  const now = Date.now();
+  // Mappa finale: fileElementId → localElementId
+  const idRemap = new Map<string, string>(analysis.autoRemap);
+
+  // Gestisci elementi mancanti
+  const addSet = new Set(decisions.addMissingIds);
+  for (const el of analysis.missing) {
+    if (addSet.has(el.id)) {
+      // Aggiungi con l'ID del file: le dish references funzionano senza remap
+      await appDb.elements.put({ ...el, updatedAt: now });
+    }
+    // Se non aggiunto: le dish references puntano a un ID inesistente →
+    // mostrato come "(eliminato)" nell'UI — comportamento atteso per T2.4.
+  }
+
+  // Gestisci conflitti
+  for (const dec of decisions.conflicts) {
+    const conflict = analysis.conflicts.find(
+      (c) => c.fileElement.id === dec.fileElementId,
+    );
+    if (!conflict) continue;
+
+    switch (dec.resolution) {
+      case 'keep-local':
+        // Rimappa le dish al localElement.id (non toccare il DB)
+        idRemap.set(dec.fileElementId, conflict.localElement.id);
+        break;
+
+      case 'overwrite':
+        // Aggiorna la frequenza dell'elemento locale
+        await appDb.elements.put({
+          ...conflict.localElement,
+          maxFrequencyPerWeek: conflict.fileElement.maxFrequencyPerWeek,
+          updatedAt: now,
+        });
+        // Rimappa al localElement.id (stesso elemento, frequenza aggiornata)
+        idRemap.set(dec.fileElementId, conflict.localElement.id);
+        break;
+
+      case 'rename': {
+        // Aggiungi l'elemento con il nuovo nome usando l'ID del file
+        const newName = dec.newName?.trim() ?? `${conflict.fileElement.name} (importato)`;
+        await appDb.elements.put({ ...conflict.fileElement, name: newName, updatedAt: now });
+        // Nessuna rimappatura: l'ID del file viene inserito direttamente
+        break;
+      }
+    }
+  }
+
+  // Se non ci sono rimappature, ritorna data invariato
+  if (idRemap.size === 0) return data;
+
+  // Applica la rimappatura agli elementIds delle dishes
+  const remappedWeeks: Week[] = data.weeks.map((week) => ({
+    ...week,
+    slots: week.slots.map((slot) => ({
+      ...slot,
+      dishes: slot.dishes.map((dish) => ({
+        ...dish,
+        elementIds: dish.elementIds.map((id) => idRemap.get(id) ?? id),
+      })),
+    })),
+  }));
+
+  return { ...data, weeks: remappedWeeks };
+}
 
 /**
  * Valida un file di condivisione o backup **senza** scrivere nel DB.

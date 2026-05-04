@@ -5,7 +5,7 @@ import { useElementiStore } from '../stores/elementiStore';
 import { weekIdToMonday, formatWeekLabel, getCurrentWeekId } from '../domain/week';
 import { computeWeeklyFrequencies } from '../domain/frequency';
 import { removeDishFromSlot } from '../storage/weeks';
-import { importWeeks, type ImportMode, type SlotKey } from '../storage/backup';
+import { importWeeks, analyzeElementImport, applyElementDecisions, type ImportMode, type SlotKey, type ElementImportDecisions } from '../storage/backup';
 import FormAggiuntaPiatto from '../components/FormAggiuntaPiatto.vue';
 import ReminderFrequenze from '../components/ReminderFrequenze.vue';
 import CondividiModal from '../components/CondividiModal.vue';
@@ -133,12 +133,21 @@ const showImportaMenu = ref(false);
 
 /**
  * Gestore dell'evento `confirm` emesso da `ImportaMenuModal`.
- * Chiama `importWeeks` con la modalità e gli slot scelti dall'utente,
- * poi aggiorna la vista e chiude il modal.
+ * 1. Applica le decisioni sugli elementi (aggiunge mancanti, risolve conflitti,
+ *    rimappa gli ID nelle dishes) → `processedData`.
+ * 2. Importa le settimane nel DB con la modalità scelta.
+ * 3. Aggiorna la vista settimanale e l'elenco degli elementi.
  */
-async function onImportaConfirm(data: BackupData, mode: ImportMode, selectedSlots: SlotKey[]) {
-  await importWeeks(data, mode, selectedSlots);
-  await settimanaStore.refresh();
+async function onImportaConfirm(
+  data: BackupData,
+  mode: ImportMode,
+  selectedSlots: SlotKey[],
+  decisions: ElementImportDecisions,
+) {
+  const analysis = await analyzeElementImport(data);
+  const processedData = await applyElementDecisions(data, analysis, decisions);
+  await importWeeks(processedData, mode, selectedSlots);
+  await Promise.all([settimanaStore.refresh(), elementiStore.load()]);
   showImportaMenu.value = false;
 }
 

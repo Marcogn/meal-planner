@@ -1,6 +1,6 @@
 <!--
-  ImportaMenuModal — T6.3 / T6.4 / T6.5
-  =======================================
+  ImportaMenuModal — T6.3 / T6.4 / T6.5 / T6.6
+  ===============================================
   Modal per importare un menù condiviso.
 
   Flusso:
@@ -8,23 +8,27 @@
   2. "parsing"           — parsing in corso.
   3. "preview"           — riepilogo del file (settimane, piatti, elementi).
   4. "mode-select"       — (T6.4) radio "Sovrascrivi tutto" / "Scegli slot per slot".
-  5. "granular-select"   — (T6.5) checkbox per ogni (giorno, pasto) con piatti;
-                           default tutti spuntati.
+  5. "granular-select"   — (T6.5) checkbox per ogni (giorno, pasto) con piatti.
+  6. "element-review"    — (T6.6) risoluzione elementi mancanti e conflitti di frequenza.
+                           Viene saltato automaticamente se non ci sono problemi da risolvere.
 
   Emits
   -----
   close   — chiudere il modal senza importare nulla
-  confirm — l'utente ha confermato di voler procedere con l'import;
-            payload: BackupData, ImportMode, SlotKey[]
+  confirm — l'utente ha completato tutti gli step;
+            payload: BackupData, ImportMode, SlotKey[], ElementImportDecisions
 -->
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import {
   parseSharedFile,
   BackupImportError,
+  analyzeElementImport,
   type BackupData,
   type ImportMode,
   type SlotKey,
+  type ElementImportAnalysis,
+  type ElementImportDecisions,
 } from '../storage/backup';
 import { formatWeekLabel } from '../domain/week';
 import type { Element } from '../domain/types';
@@ -33,15 +37,29 @@ const emit = defineEmits<{
   /** Chiude il modal senza importare nulla. */
   close: [];
   /**
-   * L'utente ha confermato di voler procedere con l'import.
-   * Il gestore in WeekView chiamerà `importWeeks(data, mode, selectedSlots)`.
+   * L'utente ha completato tutti gli step di import.
+   * Il gestore in WeekView chiamerà `applyElementDecisions(data, decisions)`
+   * poi `importWeeks(processedData, mode, selectedSlots)`.
    */
-  confirm: [data: BackupData, mode: ImportMode, selectedSlots: SlotKey[]];
+  confirm: [
+    data: BackupData,
+    mode: ImportMode,
+    selectedSlots: SlotKey[],
+    decisions: ElementImportDecisions,
+  ];
 }>();
 
 // ── Stato interno ──────────────────────────────────────────────────────────
 
-type Step = 'pick' | 'parsing' | 'preview' | 'error' | 'mode-select' | 'granular-select';
+type Step =
+  | 'pick'
+  | 'parsing'
+  | 'preview'
+  | 'error'
+  | 'mode-select'
+  | 'granular-select'
+  | 'element-review';
+
 const step = ref<Step>('pick');
 const parseError = ref('');
 
@@ -60,7 +78,6 @@ const importMode = ref<ImportMode>('overwrite');
 /** Uno slot selezionabile nella vista granulare. */
 interface GranularSlot {
   key: SlotKey;
-  /** Label leggibile, es. "Sett. del 04/05 · Lun · Pranzo". */
   label: string;
   dishCount: number;
   checked: boolean;
@@ -71,7 +88,6 @@ const granularSlots = ref<GranularSlot[]>([]);
 /** Almeno uno slot spuntato (serve per abilitare il pulsante Importa). */
 const hasCheckedSlots = computed(() => granularSlots.value.some((s) => s.checked));
 
-/** Costruisce la lista degli slot selezionabili dai dati del file. */
 function buildGranularSlots(data: BackupData): GranularSlot[] {
   const MEAL_ORDER = [
     'colazione',
@@ -94,14 +110,94 @@ function buildGranularSlots(data: BackupData): GranularSlot[] {
         key: { weekId: week.id, day: slot.day, meal: slot.meal },
         label: `${wLabel} · ${slotLabel(slot.day, slot.meal)}`,
         dishCount: slot.dishes.length,
-        checked: true, // default: tutti spuntati
+        checked: true,
       });
     }
   }
   return slots;
 }
 
-// ── Nomi pasto e giorno per la visualizzazione ─────────────────────────────
+function toggleAll(checked: boolean) {
+  for (const s of granularSlots.value) {
+    s.checked = checked;
+  }
+}
+
+// ── T6.6 — Risoluzione elementi mancanti e conflitti ──────────────────────
+
+interface MissingDecisionState {
+  element: Element;
+  add: boolean;
+}
+
+interface ConflictDecisionState {
+  fileElementId: string;
+  fileElement: Element;
+  localElement: Element;
+  resolution: 'keep-local' | 'overwrite' | 'rename';
+  newName: string;
+}
+
+const elementAnalysis = ref<ElementImportAnalysis | null>(null);
+const missingDecisions = ref<MissingDecisionState[]>([]);
+const conflictDecisions = ref<ConflictDecisionState[]>([]);
+
+/** Vero quando tutti i conflitti "rename" hanno un nome non vuoto. */
+const canConfirmElementReview = computed(() =>
+  conflictDecisions.value.every(
+    (d) => d.resolution !== 'rename' || d.newName.trim().length > 0,
+  ),
+);
+
+/**
+ * Analizza gli elementi del file e, se necessario, mostra lo step di risoluzione.
+ * Se non ci sono problemi, emette direttamente `confirm`.
+ */
+async function goToElementReview() {
+  if (!parsedData.value) return;
+
+  const analysis = await analyzeElementImport(parsedData.value);
+  elementAnalysis.value = analysis;
+
+  if (analysis.missing.length === 0 && analysis.conflicts.length === 0) {
+    // Niente da risolvere → emetti subito con decisioni vuote
+    emitConfirm({ addMissingIds: [], conflicts: [] });
+    return;
+  }
+
+  missingDecisions.value = analysis.missing.map((el) => ({ element: el, add: true }));
+  conflictDecisions.value = analysis.conflicts.map((c) => ({
+    fileElementId: c.fileElement.id,
+    fileElement: c.fileElement,
+    localElement: c.localElement,
+    resolution: 'keep-local',
+    newName: '',
+  }));
+  step.value = 'element-review';
+}
+
+function confirmElementReview() {
+  const decisions: ElementImportDecisions = {
+    addMissingIds: missingDecisions.value.filter((d) => d.add).map((d) => d.element.id),
+    conflicts: conflictDecisions.value.map((d) => ({
+      fileElementId: d.fileElementId,
+      resolution: d.resolution,
+      ...(d.resolution === 'rename' ? { newName: d.newName.trim() } : {}),
+    })),
+  };
+  emitConfirm(decisions);
+}
+
+function emitConfirm(decisions: ElementImportDecisions) {
+  if (!parsedData.value) return;
+  const selectedSlots =
+    importMode.value === 'granular'
+      ? granularSlots.value.filter((s) => s.checked).map((s) => s.key)
+      : [];
+  emit('confirm', parsedData.value, importMode.value, selectedSlots, decisions);
+}
+
+// ── Nomi pasto e giorno ────────────────────────────────────────────────────
 
 const MEAL_LABELS: Record<string, string> = {
   colazione: 'Colazione',
@@ -121,12 +217,17 @@ const DAY_LABELS: Record<number, string> = {
   7: 'Dom',
 };
 
+function slotLabel(day: number, meal: string): string {
+  return `${DAY_LABELS[day] ?? `G${day}`} · ${MEAL_LABELS[meal] ?? meal}`;
+}
+
+/** Formatta `maxFrequencyPerWeek` come etichetta leggibile. */
+function freqLabel(freq: Element['maxFrequencyPerWeek']): string {
+  return freq === 'unlimited' ? '∞/sett' : `max ${freq}/sett`;
+}
+
 // ── Dati calcolati per la preview ──────────────────────────────────────────
 
-/**
- * Mappa elementId → Element per i lookup veloci durante la preview.
- * Costruita dai dati nel file (non dal DB locale).
- */
 const elementMap = computed<Map<string, Element>>(() => {
   const map = new Map<string, Element>();
   if (!parsedData.value) return map;
@@ -136,10 +237,6 @@ const elementMap = computed<Map<string, Element>>(() => {
   return map;
 });
 
-/**
- * Ritorna gli slot non vuoti della settimana ordinati per giorno (ASC)
- * e pasto (ordine cronologico).
- */
 function getOrderedNonEmptySlots(week: BackupData['weeks'][0]) {
   const MEAL_ORDER = [
     'colazione',
@@ -156,20 +253,11 @@ function getOrderedNonEmptySlots(week: BackupData['weeks'][0]) {
     });
 }
 
-/** Formatta il nome di un giorno + pasto (es. "Lun · Pranzo"). */
-function slotLabel(day: number, meal: string): string {
-  return `${DAY_LABELS[day] ?? `G${day}`} · ${MEAL_LABELS[meal] ?? meal}`;
-}
-
-/** Nomi degli elementi di un piatto, separati da virgola. */
 function elementNames(elementIds: string[]): string {
   if (elementIds.length === 0) return '';
-  return elementIds
-    .map((id) => elementMap.value.get(id)?.name ?? '(eliminato)')
-    .join(', ');
+  return elementIds.map((id) => elementMap.value.get(id)?.name ?? '(eliminato)').join(', ');
 }
 
-/** Conteggio totale piatti nel file. */
 const totalDishes = computed<number>(() => {
   if (!parsedData.value) return 0;
   return parsedData.value.weeks.reduce(
@@ -189,7 +277,6 @@ async function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
-  // Reset per permettere di riaprire lo stesso file
   input.value = '';
 
   step.value = 'parsing';
@@ -219,27 +306,6 @@ function goToGranularSelect() {
   if (!parsedData.value) return;
   granularSlots.value = buildGranularSlots(parsedData.value);
   step.value = 'granular-select';
-}
-
-/** Emette `confirm` con overwrite mode (nessuna selezione slot necessaria). */
-function confirmOverwrite() {
-  if (!parsedData.value) return;
-  emit('confirm', parsedData.value, 'overwrite', []);
-}
-
-/** Emette `confirm` con la lista degli slot spuntati. */
-function confirmGranular() {
-  if (!parsedData.value) return;
-  const selected = granularSlots.value
-    .filter((s) => s.checked)
-    .map((s) => s.key);
-  emit('confirm', parsedData.value, 'granular', selected);
-}
-
-function toggleAll(checked: boolean) {
-  for (const s of granularSlots.value) {
-    s.checked = checked;
-  }
 }
 </script>
 
@@ -283,16 +349,13 @@ function toggleAll(checked: boolean) {
       <template v-else-if="step === 'error'">
         <p class="error-msg" role="alert">{{ parseError }}</p>
         <div class="form-actions">
-          <button class="btn-secondary" @click="step = 'pick'">
-            ← Riprova
-          </button>
+          <button class="btn-secondary" @click="step = 'pick'">← Riprova</button>
           <button @click="emit('close')">Chiudi</button>
         </div>
       </template>
 
       <!-- ── Step 4: anteprima ── -->
       <template v-else-if="step === 'preview' && parsedData">
-        <!-- Riepilogo numerico -->
         <div class="preview-summary">
           <span class="summary-chip">
             🗓 {{ parsedData.weeks.length }}
@@ -308,7 +371,6 @@ function toggleAll(checked: boolean) {
           </span>
         </div>
 
-        <!-- Elenco elementi referenziati -->
         <div v-if="parsedData.elements.length > 0" class="elements-preview">
           <strong class="section-label">Elementi nel file:</strong>
           <span class="elements-list">
@@ -316,7 +378,6 @@ function toggleAll(checked: boolean) {
           </span>
         </div>
 
-        <!-- Dettaglio per settimana -->
         <div class="weeks-preview">
           <details
             v-for="week in parsedData.weeks"
@@ -343,16 +404,9 @@ function toggleAll(checked: boolean) {
               >
                 <span class="slot-label">{{ slotLabel(slot.day, slot.meal) }}</span>
                 <ul class="dish-list">
-                  <li
-                    v-for="dish in slot.dishes"
-                    :key="dish.id"
-                    class="dish-item"
-                  >
+                  <li v-for="dish in slot.dishes" :key="dish.id" class="dish-item">
                     {{ dish.name }}
-                    <span
-                      v-if="dish.elementIds.length > 0"
-                      class="dish-elements"
-                    >
+                    <span v-if="dish.elementIds.length > 0" class="dish-elements">
                       ({{ elementNames(dish.elementIds) }})
                     </span>
                   </li>
@@ -362,11 +416,8 @@ function toggleAll(checked: boolean) {
           </details>
         </div>
 
-        <!-- Azioni -->
         <div class="form-actions">
-          <button class="btn-primary" @click="goToModeSelect">
-            Prosegui →
-          </button>
+          <button class="btn-primary" @click="goToModeSelect">Prosegui →</button>
           <button @click="emit('close')">Annulla</button>
         </div>
       </template>
@@ -377,12 +428,7 @@ function toggleAll(checked: boolean) {
 
         <div class="mode-options">
           <label class="mode-option">
-            <input
-              v-model="importMode"
-              type="radio"
-              name="import-mode"
-              value="overwrite"
-            />
+            <input v-model="importMode" type="radio" name="import-mode" value="overwrite" />
             <span class="mode-option-content">
               <strong>Sovrascrivi tutto</strong>
               <span class="mode-option-desc">
@@ -393,12 +439,7 @@ function toggleAll(checked: boolean) {
           </label>
 
           <label class="mode-option">
-            <input
-              v-model="importMode"
-              type="radio"
-              name="import-mode"
-              value="granular"
-            />
+            <input v-model="importMode" type="radio" name="import-mode" value="granular" />
             <span class="mode-option-content">
               <strong>Scegli slot per slot</strong>
               <span class="mode-option-desc">
@@ -413,20 +454,14 @@ function toggleAll(checked: boolean) {
           <button
             v-if="importMode === 'overwrite'"
             class="btn-primary"
-            @click="confirmOverwrite"
-          >
-            ✅ Importa
-          </button>
-          <button
-            v-else
-            class="btn-primary"
-            @click="goToGranularSelect"
+            @click="goToElementReview"
           >
             Avanti →
           </button>
-          <button class="btn-secondary" @click="step = 'preview'">
-            ← Indietro
+          <button v-else class="btn-primary" @click="goToGranularSelect">
+            Avanti →
           </button>
+          <button class="btn-secondary" @click="step = 'preview'">← Indietro</button>
         </div>
       </template>
 
@@ -450,11 +485,7 @@ function toggleAll(checked: boolean) {
             class="granular-item"
             :class="{ 'granular-item--checked': gs.checked }"
           >
-            <input
-              v-model="gs.checked"
-              type="checkbox"
-              class="granular-checkbox"
-            />
+            <input v-model="gs.checked" type="checkbox" class="granular-checkbox" />
             <span class="granular-label">
               {{ gs.label }}
               <span class="granular-count">
@@ -472,11 +503,117 @@ function toggleAll(checked: boolean) {
           <button
             class="btn-primary"
             :disabled="!hasCheckedSlots"
-            @click="confirmGranular"
+            @click="goToElementReview"
+          >
+            Avanti →
+          </button>
+          <button class="btn-secondary" @click="step = 'mode-select'">← Indietro</button>
+        </div>
+      </template>
+
+      <!-- ── Step 7: risoluzione elementi (T6.6) ── -->
+      <template v-else-if="step === 'element-review' && elementAnalysis">
+        <p class="modal-desc">
+          Alcuni elementi del file non corrispondono al tuo archivio locale.
+          Scegli come gestirli.
+        </p>
+
+        <!-- Sezione: elementi mancanti -->
+        <div v-if="missingDecisions.length > 0" class="er-section">
+          <strong class="er-section-title">
+            🆕 {{ missingDecisions.length }}
+            {{ missingDecisions.length === 1 ? 'elemento nuovo' : 'elementi nuovi' }}
+          </strong>
+          <p class="er-section-desc">
+            Questi elementi sono nel file ma non nel tuo archivio.
+            Spunta quelli che vuoi aggiungere.
+          </p>
+          <div class="er-list">
+            <label
+              v-for="d in missingDecisions"
+              :key="d.element.id"
+              class="er-item"
+              :class="{ 'er-item--checked': d.add }"
+            >
+              <input v-model="d.add" type="checkbox" class="er-checkbox" />
+              <span class="er-item-name">{{ d.element.name }}</span>
+              <span class="er-freq">{{ freqLabel(d.element.maxFrequencyPerWeek) }}</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Sezione: conflitti di frequenza -->
+        <div v-if="conflictDecisions.length > 0" class="er-section">
+          <strong class="er-section-title">
+            ⚠️ {{ conflictDecisions.length }}
+            {{ conflictDecisions.length === 1 ? 'conflitto' : 'conflitti' }} di frequenza
+          </strong>
+          <p class="er-section-desc">
+            Questi elementi hanno lo stesso nome ma frequenza settimanale diversa.
+          </p>
+          <div
+            v-for="d in conflictDecisions"
+            :key="d.fileElementId"
+            class="er-conflict"
+          >
+            <strong class="er-conflict-name">{{ d.fileElement.name }}</strong>
+            <span class="er-conflict-freqs">
+              tuo: {{ freqLabel(d.localElement.maxFrequencyPerWeek) }}
+              &nbsp;·&nbsp;
+              file: {{ freqLabel(d.fileElement.maxFrequencyPerWeek) }}
+            </span>
+            <div class="er-radio-group">
+              <label class="er-radio">
+                <input
+                  v-model="d.resolution"
+                  type="radio"
+                  :name="`conflict-${d.fileElementId}`"
+                  value="keep-local"
+                />
+                Tieni il tuo
+              </label>
+              <label class="er-radio">
+                <input
+                  v-model="d.resolution"
+                  type="radio"
+                  :name="`conflict-${d.fileElementId}`"
+                  value="overwrite"
+                />
+                Usa la frequenza del file
+              </label>
+              <label class="er-radio">
+                <input
+                  v-model="d.resolution"
+                  type="radio"
+                  :name="`conflict-${d.fileElementId}`"
+                  value="rename"
+                />
+                Aggiungi con nuovo nome
+              </label>
+              <input
+                v-if="d.resolution === 'rename'"
+                v-model="d.newName"
+                type="text"
+                class="er-rename-input"
+                placeholder="Nuovo nome per l'elemento importato…"
+                maxlength="80"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button
+            class="btn-primary"
+            :disabled="!canConfirmElementReview"
+            @click="confirmElementReview"
           >
             ✅ Importa
           </button>
-          <button class="btn-secondary" @click="step = 'mode-select'">
+          <button
+            class="btn-secondary"
+            @click="importMode === 'granular' ? (step = 'granular-select') : (step = 'mode-select')"
+          >
             ← Indietro
           </button>
         </div>
@@ -560,7 +697,7 @@ function toggleAll(checked: boolean) {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 340px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -708,7 +845,7 @@ function toggleAll(checked: boolean) {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: 340px;
+  max-height: 280px;
   overflow-y: auto;
 }
 
@@ -744,6 +881,119 @@ function toggleAll(checked: boolean) {
   font-size: 0.78rem;
   color: #888;
   margin-left: 0.25rem;
+}
+
+/* ── Risoluzione elementi (T6.6) ── */
+.er-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+}
+
+.er-section-title {
+  font-size: 0.9rem;
+}
+
+.er-section-desc {
+  font-size: 0.82rem;
+  color: #666;
+  margin: 0;
+}
+
+.er-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.er-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.er-item--checked {
+  background: #f4f6ff;
+  border-color: #aabbee;
+}
+
+.er-checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+}
+
+.er-item-name {
+  flex: 1;
+}
+
+.er-freq {
+  font-size: 0.78rem;
+  color: #888;
+  white-space: nowrap;
+}
+
+.er-conflict {
+  border: 1px solid #ffe0a0;
+  background: #fffbf0;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.er-conflict-name {
+  font-size: 0.9rem;
+}
+
+.er-conflict-freqs {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.er-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.15rem;
+}
+
+.er-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.er-radio input[type='radio'] {
+  flex-shrink: 0;
+}
+
+.er-rename-input {
+  margin-top: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.er-rename-input:focus {
+  outline: none;
+  border-color: #2244aa;
 }
 
 /* ── Azioni ── */

@@ -113,8 +113,10 @@
   - `importWeeks(data, mode, selectedSlots?)` in `backup.ts`: overwrite sostituisce le settimane del file, granulare importa solo gli slot selezionati. `ImportaMenuModal`: step `mode-select` con radio + descrizioni; in overwrite → emette subito, in granulare → passa a `granular-select`. `WeekView.onImportaConfirm` chiama `importWeeks` e fa refresh. 11 nuovi test (115 totali).
 - [x] **T6.5** Modalità granulare: per ogni `(giorno, pasto)` con piatto importabile, checkbox per accettare. Default: tutti spuntati.
   - `ImportaMenuModal`: step `granular-select` con lista checkbox (ordinata giorno+pasto), "Seleziona tutti / Deseleziona tutti", pulsante Importa disabilitato se nessuno slot spuntato.
-- [ ] **T6.6** Gestione Elementi mancanti: se il file referenzia Elementi che non esistono localmente, dialog "Aggiungi questi N elementi al tuo archivio?". Conflitti di nome con frequenze diverse → sub-dialog "tieni il tuo / sovrascrivi / rinomina".
-- [ ] **T6.7** Test integrazione completo: export da menù A → import in menù B → verifica integrità.
+- [x] **T6.6** Gestione Elementi mancanti: se il file referenzia Elementi che non esistono localmente, dialog "Aggiungi questi N elementi al tuo archivio?". Conflitti di nome con frequenze diverse → sub-dialog "tieni il tuo / sovrascrivi / rinomina".
+  - `backup.ts`: `analyzeElementImport(data)` classifica gli elementi in `missing`, `conflicts`, `autoRemap`. `applyElementDecisions(data, analysis, decisions)` scrive nel DB, rimappa gli ID nelle dishes e ritorna `BackupData` processato. `ImportaMenuModal`: step `element-review` con sezione "elementi nuovi" (checkboxes) e "conflitti di frequenza" (radio + input rename); auto-skip se nessun problema. `WeekView.onImportaConfirm` chiama `analyzeElementImport` + `applyElementDecisions` + `elementiStore.load()`. 19 nuovi test (134 totali).
+- [x] **T6.7** Test integrazione completo: export da menù A → import in menù B → verifica integrità.
+  - 5 scenari: round-trip completo, autoRemap tra DB diversi, elemento mancante aggiunto, conflitto keep-local, export parziale + import granulare.
 
 ## Fase 7 — Rifinitura
 
