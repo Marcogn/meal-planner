@@ -86,7 +86,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="overlay" role="dialog" aria-labelledby="form-piatto-title" aria-modal="true" @click.self="emit('close')" @keydown.esc="emit('close')">
+  <div class="overlay" role="dialog" aria-labelledby="form-piatto-title" aria-modal="true" @click.self="emit('close')">
     <div class="modal" @keydown.esc="emit('close')">
       <!-- Header -->
       <div class="modal-header">

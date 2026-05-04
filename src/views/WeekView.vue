@@ -55,6 +55,15 @@ const dayHeaders = computed(() => {
   });
 });
 
+// T7.1 — dayHeaders arricchiti con il conteggio piatti per il tab bar giornaliero.
+// Calcolato separatamente per evitare di chiamare dayDishCount(day) 3× per ogni tab.
+const dayHeadersWithCount = computed(() =>
+  dayHeaders.value.map((dh) => ({
+    ...dh,
+    dishCount: dayDishCount(dh.day),
+  })),
+);
+
 // T3.2 — label formattata e flag "è la settimana corrente"
 const weekLabel = computed(() => formatWeekLabel(settimanaStore.currentWeekId));
 const isCurrentWeek = computed(
@@ -246,15 +255,15 @@ onMounted(async () => {
       <!-- Selettore giorno: 7 tab cliccabili -->
       <div class="day-tabs" role="tablist" aria-label="Seleziona giorno">
         <button
-          v-for="dh in dayHeaders"
+          v-for="dh in dayHeadersWithCount"
           :key="dh.day"
           class="day-tab"
           :class="{ 'day-tab--active': settimanaStore.selectedDay === dh.day }"
           role="tab"
           :aria-selected="settimanaStore.selectedDay === dh.day"
           :aria-controls="`day-panel-${dh.day}`"
-          :aria-label="dayDishCount(dh.day) > 0
-            ? `${dh.shortLabel} ${dh.date}, ${dayDishCount(dh.day)} ${dayDishCount(dh.day) === 1 ? 'piatto' : 'piatti'}`
+          :aria-label="dh.dishCount > 0
+            ? `${dh.shortLabel} ${dh.date}, ${dh.dishCount} ${dh.dishCount === 1 ? 'piatto' : 'piatti'}`
             : `${dh.shortLabel} ${dh.date}`"
           @click="settimanaStore.selectedDay = dh.day"
         >
@@ -262,7 +271,7 @@ onMounted(async () => {
           <span class="day-tab-date" aria-hidden="true">{{ dh.date }}</span>
           <!-- Indicatore piatti: dot visivo, informazione già nel aria-label del bottone -->
           <span
-            v-if="dayDishCount(dh.day) > 0"
+            v-if="dh.dishCount > 0"
             class="day-tab-dot"
             aria-hidden="true"
           ></span>
@@ -349,7 +358,7 @@ onMounted(async () => {
                     :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
                   >
                     {{ getChipData(elId).label }}
-                    <span v-if="getChipData(elId).exceeded" class="sr-only"> (sforato)</span>
+                    <span v-if="getChipData(elId).exceeded" class="sr-only">(sforato)</span>
                   </span>
                 </div>
               </div>
@@ -458,7 +467,7 @@ onMounted(async () => {
                       :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
                     >
                       {{ getChipData(elId).label }}
-                      <span v-if="getChipData(elId).exceeded" class="sr-only"> (sforato)</span>
+                      <span v-if="getChipData(elId).exceeded" class="sr-only">(sforato)</span>
                     </span>
                   </div>
                 </div>

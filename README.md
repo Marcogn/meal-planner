@@ -103,7 +103,7 @@ Clicca sull'icona di installazione 💻 nella barra degli indirizzi (se presente
 ### Workflow GitHub Actions (`deploy.yml`)
 
 ```yaml
-name: Build & Deploy to GitHub Pages
+name: Build and Deploy to GitHub Pages
 
 on:
   push:
