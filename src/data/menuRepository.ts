@@ -1,5 +1,5 @@
 import { db, type MealRecord } from './db';
-import type { Meal, WeeklyMenu } from '../domain/types';
+import type { Meal, WeeklyMenu } from '../domain/types-legacy';
 
 function getIsoWeek(dateStr: string): string {
   const d = new Date(dateStr);

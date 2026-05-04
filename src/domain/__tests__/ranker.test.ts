@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { rankSuggestions } from '../ranker';
-import type { Dish, WeeklyMenu, Settings } from '../types';
+import type { Dish, WeeklyMenu, Settings } from '../types-legacy';
 
 function makeDish(id: string, cats: string[]): Dish {
   return {

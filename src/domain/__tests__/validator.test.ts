@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateWeek } from '../validator';
-import type { Dish, WeeklyMenu, FrequencyConstraint } from '../types';
+import type { Dish, WeeklyMenu, FrequencyConstraint } from '../types-legacy';
 
 function makeDish(id: string, cats: string[]): Dish {
   return {

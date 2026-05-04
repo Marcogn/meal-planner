@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { Dish } from '../domain/types';
+import type { Dish } from '../domain/types-legacy';
 import * as repo from '../data/dishRepository';
 
 export const useDishesStore = defineStore('dishes', () => {

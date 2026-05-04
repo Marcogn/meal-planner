@@ -31,7 +31,8 @@
 
 ## Fase 1 — Dominio e storage
 
-- [ ] **T1.1** Definire tipi in `src/domain/types.ts` come da `ARCHITECTURE.md` sezione 4. Esportare tutti. **Nota: NO entità `Category` separata.**
+- [x] **T1.1** Definire tipi in `src/domain/types.ts` come da `ARCHITECTURE.md` sezione 4. Esportare tutti. **Nota: NO entità `Category` separata.**
+  - Nuovo modello: `ID`, `FrequencyLimit`, `Element`, `MealType`, `DayOfWeek`, `Dish`, `MealSlot`, `Week`. Vecchi tipi spostati in `types-legacy.ts` per compatibilità con code base preesistente.
 - [ ] **T1.2** Implementare `src/domain/week.ts`: funzioni `getCurrentWeekId()`, `getWeekStart(date)`, `nextWeek(weekId)`, `prevWeek(weekId)`, `formatWeekLabel(weekId)`. **Test obbligatori** (casi: cambio anno, settimana ISO 53, ecc.).
 - [ ] **T1.3** Implementare `src/domain/frequency.ts`: funzione `computeWeeklyFrequencies(week, elements)` che ritorna `Map<elementId, { used: number, max: FrequencyLimit, exceeded: boolean }>`. **Test obbligatori**:
   - caso vuoto → tutti gli Elementi a `used: 0`

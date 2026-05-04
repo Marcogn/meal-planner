@@ -1,5 +1,5 @@
 import { db } from './db';
-import type { Dish } from '../domain/types';
+import type { Dish } from '../domain/types-legacy';
 
 export async function getAllDishes(): Promise<Dish[]> {
   return db.dishes.orderBy('createdAt').toArray();
