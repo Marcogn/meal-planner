@@ -1,371 +1,525 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { useMenuStore } from '../stores/menuStore';
-import { useDishesStore } from '../stores/dishesStore';
-import { useSettingsStore } from '../stores/settingsStore';
-import { rankSuggestions } from '../domain/ranker';
-import type { Meal, MealSlot, ProteinCategory } from '../domain/types-legacy';
-import { v4 as uuidv4 } from 'uuid';
+import { onMounted, computed, ref } from 'vue';
+import { useSettimanaStore } from '../stores/settimanaStore';
+import { useElementiStore } from '../stores/elementiStore';
+import { weekIdToMonday, formatWeekLabel, getCurrentWeekId } from '../domain/week';
+import { computeWeeklyFrequencies } from '../domain/frequency';
+import { removeDishFromSlot } from '../storage/weeks';
+import FormAggiuntaPiatto from '../components/FormAggiuntaPiatto.vue';
+import type { DayOfWeek, MealType, Dish } from '../domain/types';
 
-function getIsoWeekFromDate(d: Date): string {
-  const jan4 = new Date(d.getFullYear(), 0, 4);
-  const startOfWeek1 = new Date(jan4);
-  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-  const diff = d.getTime() - startOfWeek1.getTime();
-  const weekNum = Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1;
-  return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-}
+const settimanaStore = useSettimanaStore();
+const elementiStore = useElementiStore();
 
-function isoWeekToDates(isoWeek: string): string[] {
-  const [yearStr, weekStr] = isoWeek.split('-W');
-  const year = Number(yearStr);
-  const week = Number(weekStr);
-  const jan4 = new Date(year, 0, 4);
-  const startOfWeek1 = new Date(jan4);
-  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-  const weekStart = new Date(startOfWeek1);
-  weekStart.setDate(startOfWeek1.getDate() + (week - 1) * 7);
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    return d.toISOString().slice(0, 10);
+// ── Tutti i pasti in ordine cronologico ──
+const ALL_MEALS: { type: MealType; label: string }[] = [
+  { type: 'colazione', label: 'Colazione' },
+  { type: 'merenda_mattina', label: 'Merenda (mat.)' },
+  { type: 'pranzo', label: 'Pranzo' },
+  { type: 'merenda_pomeriggio', label: 'Merenda (pom.)' },
+  { type: 'cena', label: 'Cena' },
+];
+
+const OPTIONAL_TYPES = new Set<MealType>(['colazione', 'merenda_mattina', 'merenda_pomeriggio']);
+
+const visibleMeals = computed(() =>
+  settimanaStore.showOptionalMeals
+    ? ALL_MEALS
+    : ALL_MEALS.filter((m) => !OPTIONAL_TYPES.has(m.type)),
+);
+
+const DAYS: { day: DayOfWeek; shortLabel: string }[] = [
+  { day: 1, shortLabel: 'Lun' },
+  { day: 2, shortLabel: 'Mar' },
+  { day: 3, shortLabel: 'Mer' },
+  { day: 4, shortLabel: 'Gio' },
+  { day: 5, shortLabel: 'Ven' },
+  { day: 6, shortLabel: 'Sab' },
+  { day: 7, shortLabel: 'Dom' },
+];
+
+// Intestazioni colonna giorno: shortLabel + data gg/mm
+const dayHeaders = computed(() => {
+  const monday = weekIdToMonday(settimanaStore.currentWeekId);
+  return DAYS.map(({ day, shortLabel }) => {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + (day - 1));
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    return { day, shortLabel, date: `${dd}/${mm}` };
   });
+});
+
+// T3.2 — label formattata e flag "è la settimana corrente"
+const weekLabel = computed(() => formatWeekLabel(settimanaStore.currentWeekId));
+const isCurrentWeek = computed(
+  () => settimanaStore.currentWeekId === getCurrentWeekId(),
+);
+
+// T3.6 — frequenze settimanali calcolate reattivamente
+const frequencies = computed(() => {
+  if (!settimanaStore.week) return new Map();
+  return computeWeeklyFrequencies(settimanaStore.week, elementiStore.elements);
+});
+
+function getChipData(elementId: string): { label: string; exceeded: boolean } {
+  const el = elementiStore.elements.find((e) => e.id === elementId);
+  const freq = frequencies.value.get(elementId);
+  const name = el?.name ?? '(eliminato)';
+  if (!freq || freq.max === 'unlimited') return { label: name, exceeded: false };
+  return {
+    label: `${name} (${freq.used}/${freq.max})`,
+    exceeded: freq.exceeded,
+  };
 }
 
-function addWeeks(isoWeek: string, delta: number): string {
-  const dates = isoWeekToDates(isoWeek);
-  const base = new Date(dates[0]);
-  base.setDate(base.getDate() + delta * 7);
-  return getIsoWeekFromDate(base);
+// T3.3 — piatti per slot: mappa pre-calcolata per evitare ricerche ripetute nel template
+const slotsMap = computed(() => {
+  const map = new Map<string, Dish[]>();
+  if (!settimanaStore.week) return map;
+  for (const slot of settimanaStore.week.slots) {
+    map.set(`${slot.day}-${slot.meal}`, slot.dishes);
+  }
+  return map;
+});
+
+function getDishes(day: DayOfWeek, meal: MealType): Dish[] {
+  return slotsMap.value.get(`${day}-${meal}`) ?? [];
 }
 
-const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-const SLOTS: MealSlot[] = ['PRANZO', 'CENA'];
+// T3.5 — elimina piatto
+async function deleteDish(day: DayOfWeek, meal: MealType, dishId: string) {
+  await removeDishFromSlot(settimanaStore.currentWeekId, day, meal, dishId);
+  await settimanaStore.refresh();
+}
 
-const menuStore = useMenuStore();
-const dishesStore = useDishesStore();
-const settingsStore = useSettingsStore();
+// T3.4 / T3.5 — form aggiunta / modifica
+const showForm = ref(false);
+const formDay = ref<DayOfWeek>(1);
+const formMeal = ref<MealType>('pranzo');
+const formExistingDish = ref<Dish | undefined>(undefined);
 
-const isoWeek = ref(getIsoWeekFromDate(new Date()));
-const dates = computed(() => isoWeekToDates(isoWeek.value));
+function openAddForm(day: DayOfWeek, meal: MealType) {
+  formDay.value = day;
+  formMeal.value = meal;
+  formExistingDish.value = undefined;
+  showForm.value = true;
+}
 
-const showModal = ref(false);
-const selectedDate = ref('');
-const selectedSlot = ref<MealSlot>('PRANZO');
-const confirmOverwrite = ref(false);
-const searchQuery = ref('');
+function openEditForm(day: DayOfWeek, meal: MealType, dish: Dish) {
+  formDay.value = day;
+  formMeal.value = meal;
+  formExistingDish.value = dish;
+  showForm.value = true;
+}
+
+function closeForm() {
+  showForm.value = false;
+}
 
 onMounted(async () => {
-  await Promise.all([
-    menuStore.loadWeek(isoWeek.value),
-    menuStore.loadHistory(),
-    dishesStore.load(),
-    settingsStore.load(),
-  ]);
+  await Promise.all([settimanaStore.loadCurrentWeek(), elementiStore.load()]);
 });
-
-watch(isoWeek, async (week) => {
-  await menuStore.loadWeek(week);
-});
-
-function getMeal(date: string, slot: MealSlot): Meal | undefined {
-  return menuStore.currentMenu.meals.find((m) => m.date === date && m.slot === slot);
-}
-
-function getDishName(dishId: string): string {
-  return dishesStore.dishes.find((d) => d.id === dishId)?.name ?? '—';
-}
-
-function openModal(date: string, slot: MealSlot) {
-  selectedDate.value = date;
-  selectedSlot.value = slot;
-  confirmOverwrite.value = false;
-  searchQuery.value = '';
-  showModal.value = true;
-}
-
-function closeModal() {
-  showModal.value = false;
-}
-
-const ranked = computed(() => {
-  if (!showModal.value) return [];
-  const tempMenu = {
-    ...menuStore.currentMenu,
-    meals: menuStore.currentMenu.meals.filter(
-      (m) => !(m.date === selectedDate.value && m.slot === selectedSlot.value)
-    ),
-  };
-  const history = menuStore.history.filter((h) => h.isoWeek !== isoWeek.value);
-  return rankSuggestions(dishesStore.dishes, tempMenu, history, settingsStore.settings);
-});
-
-const filteredRanked = computed(() => {
-  const q = searchQuery.value.toLowerCase();
-  if (!q) return ranked.value;
-  return ranked.value.filter((sd) => sd.dish.name.toLowerCase().includes(q));
-});
-
-async function selectDish(dishId: string) {
-  const existing = getMeal(selectedDate.value, selectedSlot.value);
-  if (existing && !confirmOverwrite.value) {
-    confirmOverwrite.value = true;
-    return;
-  }
-  if (existing) {
-    await menuStore.removeMeal(existing.id, isoWeek.value);
-  }
-  const meal: Meal = {
-    id: uuidv4(),
-    dishId,
-    date: selectedDate.value,
-    slot: selectedSlot.value,
-  };
-  await menuStore.addMeal(meal, isoWeek.value);
-  closeModal();
-}
-
-async function removeMealFromSlot(date: string, slot: MealSlot) {
-  const meal = getMeal(date, slot);
-  if (meal) await menuStore.removeMeal(meal.id, isoWeek.value);
-}
-
-function getCategoryCount(category: ProteinCategory): number {
-  return menuStore.currentMenu.meals.flatMap(
-    (m) => dishesStore.dishes.find((d) => d.id === m.dishId)?.proteinCategories ?? []
-  ).filter((cat) => cat === category).length;
-}
-
-function constraintStatus(
-  category: ProteinCategory,
-  min: number | undefined,
-  max: number | undefined
-): { text: string; cls: string } {
-  const count = getCategoryCount(category);
-  const filled = menuStore.currentMenu.meals.length;
-  const totalSlots = 14;
-
-  if (max !== undefined && count > max) {
-    return { text: `${category}: ${count}/${max} — TROPPI`, cls: 'status-error' };
-  }
-  if (min !== undefined && count >= min) {
-    return { text: `${category}: ${count}/${min} — OK`, cls: 'status-ok' };
-  }
-  if (min !== undefined && filled < totalSlots) {
-    return { text: `${category}: ${count}/${min} — incompleta`, cls: 'status-warn' };
-  }
-  if (min !== undefined) {
-    return { text: `${category}: ${count}/${min} — NON RAGGIUNTO`, cls: 'status-error' };
-  }
-  return { text: `${category}: ${count}`, cls: '' };
-}
 </script>
 
 <template>
-  <div>
+  <div class="settimana-view">
+    <!-- T3.2 — Navigazione settimane -->
     <div class="week-nav">
-      <button @click="isoWeek = addWeeks(isoWeek, -1)">← Precedente</button>
-      <strong>{{ isoWeek }}</strong>
-      <button @click="isoWeek = addWeeks(isoWeek, 1)">Successiva →</button>
+      <button
+        class="nav-btn"
+        aria-label="Settimana precedente"
+        @click="settimanaStore.goToPrevWeek()"
+      >
+        &#8592;
+      </button>
+      <span class="week-label">{{ weekLabel }}</span>
+      <button
+        class="nav-btn"
+        aria-label="Settimana successiva"
+        @click="settimanaStore.goToNextWeek()"
+      >
+        &#8594;
+      </button>
+      <button
+        v-if="!isCurrentWeek"
+        class="today-btn"
+        @click="settimanaStore.goToToday()"
+      >
+        Oggi
+      </button>
     </div>
 
-    <div class="week-grid-wrapper">
-      <div class="week-grid">
-        <div class="grid-header-row">
-          <div class="slot-label-cell"></div>
-          <div v-for="(date, i) in dates" :key="date" class="day-header">
-            {{ DAY_NAMES[i] }}<br /><small>{{ date.slice(5) }}</small>
-          </div>
-        </div>
-        <div v-for="slot in SLOTS" :key="slot" class="grid-row">
-          <div class="slot-label-cell">{{ slot }}</div>
-          <div
-            v-for="date in dates"
-            :key="date"
-            class="cell"
-            @click="openModal(date, slot)"
-          >
-            <span v-if="getMeal(date, slot)">
-              {{ getDishName(getMeal(date, slot)!.dishId) }}
-              <button class="remove-btn" @click.stop="removeMealFromSlot(date, slot)">✕</button>
-            </span>
-            <span v-else class="empty-slot">+</span>
-          </div>
-        </div>
-      </div>
+    <!-- Toggle pasti opzionali -->
+    <div class="toggle-bar">
+      <label class="toggle-label">
+        <input
+          type="checkbox"
+          :checked="settimanaStore.showOptionalMeals"
+          @change="
+            settimanaStore.setShowOptionalMeals(
+              ($event.target as HTMLInputElement).checked,
+            )
+          "
+        />
+        Mostra colazione e merende
+      </label>
     </div>
 
-    <section
-      v-if="settingsStore.settings.constraints.length > 0"
-      class="status-panel"
-    >
-      <h3>Stato vincoli</h3>
-      <ul>
-        <li
-          v-for="c in settingsStore.settings.constraints"
-          :key="c.category"
+    <!-- T3.3 — Griglia settimanale -->
+    <div class="grid-wrapper">
+      <div
+        class="week-grid"
+        :style="{ gridTemplateColumns: `var(--meal-col-w) repeat(7, minmax(4rem, 1fr))` }"
+      >
+        <!-- Riga header -->
+        <div class="cell cell--corner" aria-hidden="true"></div>
+        <div
+          v-for="dh in dayHeaders"
+          :key="dh.day"
+          class="cell cell--day-header"
         >
-          <span
-            :class="constraintStatus(c.category, c.minPerWeek, c.maxPerWeek).cls"
-          >
-            {{ constraintStatus(c.category, c.minPerWeek, c.maxPerWeek).text }}
-          </span>
-        </li>
-      </ul>
-    </section>
+          <span class="day-name">{{ dh.shortLabel }}</span>
+          <span class="day-date">{{ dh.date }}</span>
+        </div>
 
-    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
-      <div class="modal">
-        <h3>{{ selectedDate }} — {{ selectedSlot }}</h3>
-        <input v-model="searchQuery" placeholder="Cerca piatto..." />
-        <p v-if="getMeal(selectedDate, selectedSlot) && !confirmOverwrite" class="warn">
-          Slot già occupato. Clicca di nuovo per sovrascrivere.
-        </p>
-        <ul class="dish-list">
-          <li
-            v-for="sd in filteredRanked"
-            :key="sd.dish.id"
-            @click="selectDish(sd.dish.id)"
+        <!-- Righe pasti -->
+        <template v-for="meal in visibleMeals" :key="meal.type">
+          <div class="cell cell--meal-label">{{ meal.label }}</div>
+
+          <div
+            v-for="dh in dayHeaders"
+            :key="dh.day"
+            class="cell cell--slot"
+            :class="{ 'cell--slot-empty': getDishes(dh.day, meal.type).length === 0 }"
+            :role="getDishes(dh.day, meal.type).length === 0 ? 'button' : undefined"
+            :tabindex="getDishes(dh.day, meal.type).length === 0 ? 0 : undefined"
+            :aria-label="
+              getDishes(dh.day, meal.type).length === 0
+                ? `Aggiungi piatto: ${meal.label} ${dh.shortLabel} ${dh.date}`
+                : undefined
+            "
+            @click="
+              getDishes(dh.day, meal.type).length === 0
+                ? openAddForm(dh.day, meal.type)
+                : undefined
+            "
+            @keydown.enter="
+              getDishes(dh.day, meal.type).length === 0
+                ? openAddForm(dh.day, meal.type)
+                : undefined
+            "
           >
-            {{ sd.dish.name }}
-            <small v-if="sd.dish.proteinCategories.length">
-              ({{ sd.dish.proteinCategories.join(', ') }})
-            </small>
-          </li>
-          <li v-if="filteredRanked.length === 0">Nessun piatto disponibile.</li>
-        </ul>
-        <button @click="closeModal">Annulla</button>
+            <!-- Slot vuoto -->
+            <span
+              v-if="getDishes(dh.day, meal.type).length === 0"
+              class="empty-hint"
+              aria-hidden="true"
+            >+</span>
+
+            <!-- Slot occupato: uno o più piatti -->
+            <template v-else>
+              <div
+                v-for="dish in getDishes(dh.day, meal.type)"
+                :key="dish.id"
+                class="dish-card"
+              >
+                <!-- Nome piatto + azioni -->
+                <div class="dish-header">
+                  <span class="dish-name">{{ dish.name }}</span>
+                  <div class="dish-actions">
+                    <button
+                      class="action-btn"
+                      title="Modifica piatto"
+                      aria-label="Modifica piatto"
+                      @click.stop="openEditForm(dh.day, meal.type, dish)"
+                    >
+                      <span aria-hidden="true">✏️</span>
+                    </button>
+                    <button
+                      class="action-btn action-btn--danger"
+                      title="Elimina piatto"
+                      aria-label="Elimina piatto"
+                      @click.stop="deleteDish(dh.day, meal.type, dish.id)"
+                    >
+                      <span aria-hidden="true">🗑️</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- T3.6 — Chip elementi -->
+                <div v-if="dish.elementIds.length > 0" class="chips">
+                  <span
+                    v-for="elId in dish.elementIds"
+                    :key="elId"
+                    class="chip"
+                    :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
+                  >
+                    {{ getChipData(elId).label }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Pulsante aggiungi ulteriore piatto -->
+              <button
+                class="add-more-btn"
+                :aria-label="`Aggiungi altro piatto: ${meal.label} ${dh.shortLabel} ${dh.date}`"
+                @click.stop="openAddForm(dh.day, meal.type)"
+              >
+                +
+              </button>
+            </template>
+          </div>
+        </template>
       </div>
     </div>
+
+    <!-- T3.4 / T3.5 — Form modale aggiunta/modifica piatto -->
+    <FormAggiuntaPiatto
+      v-if="showForm"
+      :day="formDay"
+      :meal="formMeal"
+      :existing-dish="formExistingDish"
+      @close="closeForm"
+    />
   </div>
 </template>
 
 <style scoped>
+.settimana-view {
+  --meal-col-w: 6.5rem;
+  padding: 0.5rem;
+}
+
+/* ── T3.2 Navigazione ── */
 .week-nav {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.week-grid-wrapper {
+.nav-btn {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.1rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  flex: 1;
+  white-space: nowrap;
+}
+
+.today-btn {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  min-height: 44px;
+  background: #eef2ff;
+  border-color: #99aadd;
+  color: #2244aa;
+  border-radius: 4px;
+}
+
+.today-btn:hover {
+  background: #dde6ff;
+}
+
+/* ── Toggle pasti opzionali ── */
+.toggle-bar {
+  margin-bottom: 0.75rem;
+}
+
+.toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+/* ── Griglia ── */
+.grid-wrapper {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .week-grid {
-  min-width: 600px;
-}
-
-.grid-header-row,
-.grid-row {
   display: grid;
-  grid-template-columns: 60px repeat(7, 1fr);
   gap: 2px;
-  margin-bottom: 2px;
+  min-width: 32rem;
 }
 
-.day-header {
-  font-weight: bold;
-  font-size: 0.8rem;
+.cell {
+  padding: 4px 3px;
+  font-size: 0.82rem;
+}
+
+.cell--corner {
+  /* spazio top-left */
+}
+
+.cell--day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-weight: 700;
   text-align: center;
   padding: 4px 2px;
 }
 
-.slot-label-cell {
-  font-weight: bold;
+.day-name {
+  font-size: 0.82rem;
+}
+
+.day-date {
+  font-size: 0.72rem;
+  color: #666;
+}
+
+.cell--meal-label {
+  font-weight: 600;
   font-size: 0.8rem;
+  color: #444;
   display: flex;
   align-items: center;
-  padding: 2px;
+  padding-right: 0.25rem;
 }
 
-.cell {
-  border: 1px solid #ccc;
-  padding: 4px;
+/* ── Slot ── */
+.cell--slot {
+  border: 1px solid #ddd;
+  border-radius: 4px;
   min-height: 52px;
-  cursor: pointer;
-  font-size: 0.8rem;
+  background: #fafafa;
   word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 3px;
 }
 
-.cell:hover {
+/* Slot vuoto: centrato + cursore pointer */
+.cell--slot-empty {
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell--slot-empty:hover,
+.cell--slot-empty:focus-visible {
+  background: #eef2ff;
+  border-color: #99aadd;
+  outline: none;
+}
+
+.empty-hint {
+  color: #bbb;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+/* ── T3.3 Piatto card ── */
+.dish-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 5px;
+  margin-bottom: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dish-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.dish-name {
+  font-weight: 600;
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.dish-actions {
+  display: flex;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 2px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.action-btn:hover {
   background: #f0f0f0;
 }
 
-.empty-slot {
-  color: #aaa;
-  font-size: 1.2rem;
+.action-btn--danger:hover {
+  background: #fde8e8;
 }
 
-.remove-btn {
-  border: none;
-  background: none;
-  color: #cc0000;
-  font-size: 0.7rem;
-  padding: 0 2px;
-  cursor: pointer;
-}
-
-.status-panel {
-  margin-top: 1.5rem;
-}
-
-.status-panel ul {
-  list-style: none;
-  padding: 0;
-}
-
-.status-panel li {
-  padding: 3px 0;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+/* ── T3.6 Chip elementi ── */
+.chips {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
+  flex-wrap: wrap;
+  gap: 3px;
 }
 
-.modal {
-  background: #fff;
-  border-radius: 8px;
-  padding: 1.5rem;
-  width: min(500px, 95vw);
-  max-height: 80vh;
-  overflow-y: auto;
+.chip {
+  display: inline-block;
+  background: #e8edf8;
+  color: #2244aa;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
-.modal input {
-  width: 100%;
-  padding: 0.4rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+.chip--exceeded {
+  background: #fde8e8;
+  color: #cc0000;
+  font-weight: 600;
 }
 
-.dish-list {
-  list-style: none;
-  padding: 0;
-  max-height: 300px;
-  overflow-y: auto;
-  margin-bottom: 0.75rem;
-}
-
-.dish-list li {
-  padding: 7px 8px;
+/* ── Pulsante "aggiungi altro piatto" ── */
+.add-more-btn {
+  align-self: center;
+  background: none;
+  border: 1px dashed #bbb;
+  color: #999;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  min-height: 28px;
   cursor: pointer;
-  border-bottom: 1px solid #eee;
+  width: 100%;
+  margin-top: 2px;
 }
 
-.dish-list li:hover {
-  background: #f5f5f5;
-}
-
-.warn {
-  color: #b87a00;
-  font-size: 0.9rem;
+.add-more-btn:hover {
+  background: #eef2ff;
+  border-color: #99aadd;
+  color: #2244aa;
 }
 </style>

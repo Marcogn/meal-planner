@@ -66,12 +66,18 @@
 
 ## Fase 3 — UI: Vista settimanale
 
-- [ ] **T3.1** Layout vista settimanale: griglia 7 giorni × N pasti. Pranzo e cena sempre visibili. Toggle per mostrare colazione/merende (stato persistito in localStorage).
-- [ ] **T3.2** Navigazione settimane: pulsanti `<` e `>`, label "Settimana del lun gg/mm". Pulsante "oggi" per tornare alla settimana corrente.
-- [ ] **T3.3** Slot vuoto: pulsante "+". Slot occupato: nome piatto + chip degli Elementi.
-- [ ] **T3.4** Form aggiunta piatto: nome libero + multi-select Elementi con autocomplete. Salvataggio in IndexedDB + refresh vista.
-- [ ] **T3.5** Edit/Delete piatto da uno slot.
-- [ ] **T3.6** Chip Elemento dentro lo slot: mostra `nome (n/max)` o solo `nome` se unlimited. Colore rosso se sforato.
+- [x] **T3.1** Layout vista settimanale: griglia 7 giorni × N pasti. Pranzo e cena sempre visibili. Toggle per mostrare colazione/merende (stato persistito in localStorage).
+  - `settimanaStore.ts` (Pinia): week corrente, toggle `showOptionalMeals` in localStorage. `WeekView.vue` riscritto con nuova architettura: griglia CSS Grid 7×N, pasti opzionali collassabili. Build e 81 test passano.
+- [x] **T3.2** Navigazione settimane: pulsanti `<` e `>`, label "Settimana del lun gg/mm". Pulsante "oggi" per tornare alla settimana corrente.
+  - `formatWeekLabel()` usato in `WeekView.vue`. Pulsante "Oggi" visibile solo quando non si è sulla settimana corrente.
+- [x] **T3.3** Slot vuoto: pulsante "+". Slot occupato: nome piatto + chip degli Elementi.
+  - Slot vuoto centrato con "+" cliccabile. Slot occupato mostra dish card con nome + chip.
+- [x] **T3.4** Form aggiunta piatto: nome libero + multi-select Elementi con autocomplete. Salvataggio in IndexedDB + refresh vista.
+  - Nuovo componente `FormAggiuntaPiatto.vue`: input nome, lista elementi con filtro testo, checkbox multipla. `addDishToSlot` + `settimanaStore.refresh()` al salvataggio.
+- [x] **T3.5** Edit/Delete piatto da uno slot.
+  - Pulsante ✏️ riapre `FormAggiuntaPiatto` in edit mode (rimuove vecchio + inserisce aggiornato). Pulsante 🗑️ chiama `removeDishFromSlot` + refresh.
+- [x] **T3.6** Chip Elemento dentro lo slot: mostra `nome (n/max)` o solo `nome` se unlimited. Colore rosso se sforato.
+  - `computeWeeklyFrequencies` calcolato come `computed` reattivo. `getChipData()` ritorna label e flag `exceeded`. CSS `.chip--exceeded` → rosso.
 
 ## Fase 4 — Reminder frequenze
 
