@@ -44,7 +44,8 @@
   - 11 test passano. Gestito anche il caso limite: Elemento referenziato ma non più in archivio → voce con `max:'unlimited', exceeded:false`.
 - [x] **T1.4** Implementare `src/storage/db.ts`: apertura IndexedDB con **Dexie**, schema v1 (2 store: `elements`, `weeks`), migrazione iniziale.
   - Classe `AppDB extends Dexie`, DB name `MenuPlannerV2` (separato dal legacy). Singleton `appDb` esportato. Build passa.
-- [ ] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
+- [x] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
+  - `createElement`, `getAllElements`, `getElementById`, `updateElement`, `deleteElement`. `ElementValidationError` per nome vuoto/duplicato. 20 test passano (fake-indexeddb).
 - [ ] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
 - [ ] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
 
