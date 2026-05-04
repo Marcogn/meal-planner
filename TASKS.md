@@ -81,9 +81,12 @@
 
 ## Fase 4 — Reminder frequenze
 
-- [ ] **T4.1** Pannello reminder (drawer laterale o sezione fissa, a scelta): lista degli Elementi della settimana corrente con conteggio `used/max`. Rosso se sforato. Mostra `∞` per unlimited.
-- [ ] **T4.2** Filtro/toggle: mostra solo sforati / mostra tutti.
-- [ ] **T4.3** Aggiornamento reattivo quando si aggiunge/rimuove un piatto (no reload manuale).
+- [x] **T4.1** Pannello reminder (drawer laterale o sezione fissa, a scelta): lista degli Elementi della settimana corrente con conteggio `used/max`. Rosso se sforato. Mostra `∞` per unlimited.
+  - `ReminderFrequenze.vue`: sezione fissa sotto la griglia. Mostra tutti gli Elementi a frequenza finita (anche se used=0) + unlimited se usati + orfani. Rosso se sforato, sforati in cima. 81 test, build e lint passano.
+- [x] **T4.2** Filtro/toggle: mostra solo sforati / mostra tutti.
+  - Bottone "Solo sforati / Tutti" nell'header del pannello reminder. Badge rosso con count. Computed `visibleRows` filtra da `rows`. Stato locale al componente.
+- [x] **T4.3** Aggiornamento reattivo quando si aggiunge/rimuove un piatto (no reload manuale).
+  - Già garantito: `frequencies` è un `computed` derivato da `settimanaStore.week`; ogni add/remove chiama `settimanaStore.refresh()` che aggiorna il ref → pannello si aggiorna automaticamente. Documentato in `WeekView.vue`.
 
 ## Fase 5 — Backup completo
 
