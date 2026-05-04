@@ -90,7 +90,8 @@
 
 ## Fase 5 — Backup completo
 
-- [ ] **T5.1** `src/storage/backup.ts`: `exportAll()` ritorna blob JSON con format/version/elements/weeks.
+- [x] **T5.1** `src/storage/backup.ts`: `exportAll()` ritorna blob JSON con format/version/elements/weeks.
+  - `exportAll()` legge tutti gli Elementi e Settimane dal DB e ritorna `Blob` JSON `{ format, version, exportedAt, elements, weeks }`. 7 test passano.
 - [ ] **T5.2** `importAll(file)`: parsing, validazione versione e schema, sovrascrittura totale (con conferma). In caso di errore di parsing, messaggio chiaro all'utente.
 - [ ] **T5.3** UI Pagina Backup: pulsante "Esporta backup" (download file), pulsante "Importa backup" (file picker + conferma).
 - [ ] **T5.4** Tracciare data ultimo backup in localStorage. Mostrare badge/banner non invadente quando >14 giorni.
