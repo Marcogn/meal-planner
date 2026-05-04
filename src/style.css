@@ -27,6 +27,12 @@ button:hover {
   background: #e8e8e8;
 }
 
+/* Focus visibile per navigazione tastiera (override del default browser troppo sottile) */
+:focus-visible {
+  outline: 2px solid #2244aa;
+  outline-offset: 2px;
+}
+
 h2, h3 {
   margin-top: 0;
 }
@@ -34,3 +40,34 @@ h2, h3 {
 .status-ok { color: #1a7a1a; }
 .status-warn { color: #b87a00; }
 .status-error { color: #cc0000; }
+
+/* Testo visivamente nascosto ma accessibile agli screen reader (WCAG pattern) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link: visibile solo quando riceve il focus da tastiera */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0.5rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: #2244aa;
+  color: #fff;
+  border-radius: 0 0 4px 4px;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 0;
+}

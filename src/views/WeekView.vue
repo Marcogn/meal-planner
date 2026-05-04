@@ -346,6 +346,7 @@ onMounted(async () => {
                     :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
                   >
                     {{ getChipData(elId).label }}
+                    <span v-if="getChipData(elId).exceeded" class="sr-only"> (sforato)</span>
                   </span>
                 </div>
               </div>
@@ -454,6 +455,7 @@ onMounted(async () => {
                       :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
                     >
                       {{ getChipData(elId).label }}
+                      <span v-if="getChipData(elId).exceeded" class="sr-only"> (sforato)</span>
                     </span>
                   </div>
                 </div>

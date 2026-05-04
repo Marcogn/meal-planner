@@ -126,17 +126,18 @@ async function confirmDelete() {
           Max: <strong>{{ freqLabel(el.maxFrequencyPerWeek) }}</strong>/sett.
         </span>
         <div class="element-actions">
-          <button class="btn-icon" title="Modifica" @click="openEditForm(el)">✏️</button>
-          <button class="btn-icon btn-danger" title="Elimina" @click="openDeleteConfirm(el)">🗑️</button>
+          <button class="btn-icon" :title="`Modifica ${el.name}`" :aria-label="`Modifica ${el.name}`" @click="openEditForm(el)">✏️</button>
+          <button class="btn-icon btn-danger" :title="`Elimina ${el.name}`" :aria-label="`Elimina ${el.name}`" @click="openDeleteConfirm(el)">🗑️</button>
         </div>
       </li>
     </ul>
     <p v-else class="empty-state">Nessun elemento ancora — aggiungine uno.</p>
 
     <!-- Form creazione -->
-    <div v-if="showCreateForm" class="modal-overlay" @click.self="closeCreateForm">
+    <div v-if="showCreateForm" class="modal-overlay" @click.self="closeCreateForm" @keydown.esc="closeCreateForm">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-title">
         <h3 id="create-title">Nuovo elemento</h3>
+        <button class="btn-close-modal" aria-label="Chiudi" @click="closeCreateForm">✕</button>
 
         <label for="create-name">Nome *</label>
         <input
@@ -145,6 +146,7 @@ async function confirmDelete() {
           type="text"
           placeholder="es. formaggio"
           autocomplete="off"
+          autofocus
           @keyup.enter="submitCreate"
         />
 
@@ -165,9 +167,10 @@ async function confirmDelete() {
     </div>
 
     <!-- Form modifica -->
-    <div v-if="showEditForm" class="modal-overlay" @click.self="closeEditForm">
+    <div v-if="showEditForm" class="modal-overlay" @click.self="closeEditForm" @keydown.esc="closeEditForm">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
         <h3 id="edit-title">Modifica elemento</h3>
+        <button class="btn-close-modal" aria-label="Chiudi" @click="closeEditForm">✕</button>
 
         <label for="edit-name">Nome *</label>
         <input
@@ -175,6 +178,7 @@ async function confirmDelete() {
           v-model="editName"
           type="text"
           autocomplete="off"
+          autofocus
           @keyup.enter="submitEdit"
         />
 
@@ -195,9 +199,10 @@ async function confirmDelete() {
     </div>
 
     <!-- Dialog conferma eliminazione -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="closeDeleteConfirm">
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="closeDeleteConfirm" @keydown.esc="closeDeleteConfirm">
       <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
         <h3 id="delete-title">Elimina elemento</h3>
+        <button class="btn-close-modal" aria-label="Chiudi" @click="closeDeleteConfirm">✕</button>
         <p>
           Vuoi eliminare <strong>{{ deleteName }}</strong>?
         </p>
@@ -303,7 +308,7 @@ async function confirmDelete() {
 }
 
 .empty-state {
-  color: #888;
+  color: #595959;
   font-style: italic;
   margin-top: 1rem;
 }
@@ -332,6 +337,29 @@ async function confirmDelete() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  position: relative;
+}
+
+/* Pulsante chiudi (×) in alto a destra del modale */
+.btn-close-modal {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  padding: 0.25rem 0.4rem;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 4px;
+  color: #595959;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-close-modal:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
 }
 
 .modal h3 {
