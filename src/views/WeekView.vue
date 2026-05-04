@@ -6,6 +6,7 @@ import { weekIdToMonday, formatWeekLabel, getCurrentWeekId } from '../domain/wee
 import { computeWeeklyFrequencies } from '../domain/frequency';
 import { removeDishFromSlot } from '../storage/weeks';
 import FormAggiuntaPiatto from '../components/FormAggiuntaPiatto.vue';
+import ReminderFrequenze from '../components/ReminderFrequenze.vue';
 import type { DayOfWeek, MealType, Dish } from '../domain/types';
 
 const settimanaStore = useSettimanaStore();
@@ -281,6 +282,12 @@ onMounted(async () => {
       :meal="formMeal"
       :existing-dish="formExistingDish"
       @close="closeForm"
+    />
+
+    <!-- T4.1 — Pannello reminder frequenze -->
+    <ReminderFrequenze
+      :frequencies="frequencies"
+      :elements="elementiStore.elements"
     />
   </div>
 </template>
