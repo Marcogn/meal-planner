@@ -10,10 +10,12 @@ import {
   exportWeek,
   exportWeeks,
   importAll,
+  importWeeks,
   BackupImportError,
   BACKUP_FORMAT,
   BACKUP_VERSION,
   type BackupData,
+  type SlotKey,
 } from '../backup';
 import { appDb } from '../db';
 import { createElement, getAllElements } from '../elements';
@@ -330,5 +332,222 @@ describe('exportWeek', () => {
     expect(dataSingle.weeks).toHaveLength(dataMulti.weeks.length);
     expect(dataSingle.elements).toHaveLength(dataMulti.elements.length);
     expect(dataSingle.weeks[0].id).toBe(dataMulti.weeks[0].id);
+  });
+});
+
+// ---- Test importWeeks ----
+
+describe('importWeeks — overwrite', () => {
+  const makeWeek = (id: string, dishName: string): BackupData['weeks'][0] => ({
+    id,
+    isoWeekStart: '2026-01-05',
+    slots: [{ day: 1, meal: 'pranzo', dishes: [{ id: uuidv4(), name: dishName, elementIds: [] }] }],
+    updatedAt: Date.now(),
+  });
+
+  it('sostituisce una settimana esistente con quella del file', async () => {
+    const dish1 = { id: uuidv4(), name: 'vecchio', elementIds: [] };
+    await addDishToSlot('2026-W50', 1, 'pranzo', dish1);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [makeWeek('2026-W50', 'nuovo')],
+    };
+
+    await importWeeks(fileData, 'overwrite');
+    const week = await getWeek('2026-W50');
+    expect(week?.slots[0].dishes[0].name).toBe('nuovo');
+  });
+
+  it('crea la settimana locale se non esiste', async () => {
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [makeWeek('2026-W51', 'nuovo')],
+    };
+
+    await importWeeks(fileData, 'overwrite');
+    const week = await getWeek('2026-W51');
+    expect(week).toBeDefined();
+    expect(week?.slots[0].dishes[0].name).toBe('nuovo');
+  });
+
+  it('non tocca le settimane non presenti nel file', async () => {
+    const dish = { id: uuidv4(), name: 'intatta', elementIds: [] };
+    await addDishToSlot('2026-W52', 2, 'cena', dish);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [makeWeek('2026-W50', 'altra')],
+    };
+
+    await importWeeks(fileData, 'overwrite');
+    const week = await getWeek('2026-W52');
+    expect(week?.slots[0].dishes[0].name).toBe('intatta');
+  });
+
+  it('weeks vuoto → nessuna scrittura', async () => {
+    const dish = { id: uuidv4(), name: 'preesistente', elementIds: [] };
+    await addDishToSlot('2026-W53', 3, 'pranzo', dish);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [],
+    };
+
+    await importWeeks(fileData, 'overwrite');
+    const week = await getWeek('2026-W53');
+    expect(week?.slots[0].dishes[0].name).toBe('preesistente');
+  });
+});
+
+describe('importWeeks — granular', () => {
+  it('importa solo gli slot selezionati', async () => {
+    const dish = { id: uuidv4(), name: 'file-pranzo', elementIds: [] };
+    const fileWeek: BackupData['weeks'][0] = {
+      id: '2027-W01',
+      isoWeekStart: '2027-01-04',
+      slots: [
+        { day: 1, meal: 'pranzo', dishes: [dish] },
+        { day: 1, meal: 'cena', dishes: [{ id: uuidv4(), name: 'file-cena', elementIds: [] }] },
+      ],
+      updatedAt: Date.now(),
+    };
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [fileWeek],
+    };
+
+    const selected: SlotKey[] = [{ weekId: '2027-W01', day: 1, meal: 'pranzo' }];
+    await importWeeks(fileData, 'granular', selected);
+
+    const week = await getWeek('2027-W01');
+    const pranzo = week?.slots.find((s) => s.day === 1 && s.meal === 'pranzo');
+    const cena = week?.slots.find((s) => s.day === 1 && s.meal === 'cena');
+    expect(pranzo?.dishes[0].name).toBe('file-pranzo');
+    // La cena non era selezionata → non deve essere importata
+    expect(cena).toBeUndefined();
+  });
+
+  it('non modifica gli slot non selezionati della settimana locale', async () => {
+    const localDish = { id: uuidv4(), name: 'locale-cena', elementIds: [] };
+    await addDishToSlot('2027-W02', 1, 'cena', localDish);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [
+        {
+          id: '2027-W02',
+          isoWeekStart: '2027-01-11',
+          slots: [
+            { day: 1, meal: 'pranzo', dishes: [{ id: uuidv4(), name: 'file-pranzo', elementIds: [] }] },
+            { day: 1, meal: 'cena', dishes: [{ id: uuidv4(), name: 'file-cena', elementIds: [] }] },
+          ],
+          updatedAt: Date.now(),
+        },
+      ],
+    };
+
+    // Seleziono solo pranzo
+    const selected: SlotKey[] = [{ weekId: '2027-W02', day: 1, meal: 'pranzo' }];
+    await importWeeks(fileData, 'granular', selected);
+
+    const week = await getWeek('2027-W02');
+    const cena = week?.slots.find((s) => s.day === 1 && s.meal === 'cena');
+    expect(cena?.dishes[0].name).toBe('locale-cena');
+  });
+
+  it('crea la settimana locale se non esiste', async () => {
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [
+        {
+          id: '2027-W03',
+          isoWeekStart: '2027-01-18',
+          slots: [{ day: 2, meal: 'cena', dishes: [{ id: uuidv4(), name: 'nuova', elementIds: [] }] }],
+          updatedAt: Date.now(),
+        },
+      ],
+    };
+
+    const selected: SlotKey[] = [{ weekId: '2027-W03', day: 2, meal: 'cena' }];
+    await importWeeks(fileData, 'granular', selected);
+
+    const week = await getWeek('2027-W03');
+    expect(week).toBeDefined();
+    expect(week?.slots[0].dishes[0].name).toBe('nuova');
+  });
+
+  it('selectedSlots vuoto → nessuna modifica', async () => {
+    const local = { id: uuidv4(), name: 'locale', elementIds: [] };
+    await addDishToSlot('2027-W04', 1, 'pranzo', local);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [
+        {
+          id: '2027-W04',
+          isoWeekStart: '2027-01-25',
+          slots: [{ day: 1, meal: 'pranzo', dishes: [{ id: uuidv4(), name: 'dal-file', elementIds: [] }] }],
+          updatedAt: Date.now(),
+        },
+      ],
+    };
+
+    await importWeeks(fileData, 'granular', []);
+    const week = await getWeek('2027-W04');
+    expect(week?.slots[0].dishes[0].name).toBe('locale');
+  });
+
+  it('sovrascrive piatti locali dello stesso slot con quelli del file', async () => {
+    const localDish = { id: uuidv4(), name: 'locale-pranzo', elementIds: [] };
+    await addDishToSlot('2027-W05', 3, 'pranzo', localDish);
+
+    const fileData: BackupData = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      elements: [],
+      weeks: [
+        {
+          id: '2027-W05',
+          isoWeekStart: '2027-02-01',
+          slots: [{ day: 3, meal: 'pranzo', dishes: [{ id: uuidv4(), name: 'file-pranzo', elementIds: [] }] }],
+          updatedAt: Date.now(),
+        },
+      ],
+    };
+
+    const selected: SlotKey[] = [{ weekId: '2027-W05', day: 3, meal: 'pranzo' }];
+    await importWeeks(fileData, 'granular', selected);
+
+    const week = await getWeek('2027-W05');
+    const slot = week?.slots.find((s) => s.day === 3 && s.meal === 'pranzo');
+    // Deve esserci solo il piatto dal file (quello locale è stato sostituito)
+    expect(slot?.dishes).toHaveLength(1);
+    expect(slot?.dishes[0].name).toBe('file-pranzo');
   });
 });

@@ -1,26 +1,31 @@
 <!--
-  ImportaMenuModal — T6.3
-  =======================
+  ImportaMenuModal — T6.3 / T6.4 / T6.5
+  =======================================
   Modal per importare un menù condiviso.
 
   Flusso:
-  1. Stato "selezione file": l'utente sceglie un file JSON con un file picker.
-  2. Stato "anteprima": il file viene parsato con `parseSharedFile`; se valido
-     viene mostrato un riepilogo delle settimane, degli slot e degli elementi
-     presenti nel file.
-  3. Il pulsante "Prosegui →" emette `confirm` con il `BackupData` parsato,
-     consentendo al componente padre di procedere con la scelta della modalità
-     di import (T6.4).
+  1. "pick"              — l'utente sceglie un file JSON con un file picker.
+  2. "parsing"           — parsing in corso.
+  3. "preview"           — riepilogo del file (settimane, piatti, elementi).
+  4. "mode-select"       — (T6.4) radio "Sovrascrivi tutto" / "Scegli slot per slot".
+  5. "granular-select"   — (T6.5) checkbox per ogni (giorno, pasto) con piatti;
+                           default tutti spuntati.
 
   Emits
   -----
   close   — chiudere il modal senza importare nulla
-  confirm — l'utente ha visto l'anteprima ed è pronto a procedere;
-             payload: `{ data: BackupData }` (gestito in T6.4)
+  confirm — l'utente ha confermato di voler procedere con l'import;
+            payload: BackupData, ImportMode, SlotKey[]
 -->
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { parseSharedFile, BackupImportError, type BackupData } from '../storage/backup';
+import {
+  parseSharedFile,
+  BackupImportError,
+  type BackupData,
+  type ImportMode,
+  type SlotKey,
+} from '../storage/backup';
 import { formatWeekLabel } from '../domain/week';
 import type { Element } from '../domain/types';
 
@@ -29,14 +34,14 @@ const emit = defineEmits<{
   close: [];
   /**
    * L'utente ha confermato di voler procedere con l'import.
-   * Il gestore (T6.4) riceverà il `BackupData` già validato.
+   * Il gestore in WeekView chiamerà `importWeeks(data, mode, selectedSlots)`.
    */
-  confirm: [data: BackupData];
+  confirm: [data: BackupData, mode: ImportMode, selectedSlots: SlotKey[]];
 }>();
 
 // ── Stato interno ──────────────────────────────────────────────────────────
 
-type Step = 'pick' | 'parsing' | 'preview' | 'error';
+type Step = 'pick' | 'parsing' | 'preview' | 'error' | 'mode-select' | 'granular-select';
 const step = ref<Step>('pick');
 const parseError = ref('');
 
@@ -46,7 +51,57 @@ const parsedData = ref<BackupData | null>(null);
 // Riferimento all'input file nascosto
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
-// ── Nomi pasto e giorno per la visualizzazione preview ─────────────────────
+// ── T6.4 — Selezione modalità ──────────────────────────────────────────────
+
+const importMode = ref<ImportMode>('overwrite');
+
+// ── T6.5 — Selezione granulare degli slot ─────────────────────────────────
+
+/** Uno slot selezionabile nella vista granulare. */
+interface GranularSlot {
+  key: SlotKey;
+  /** Label leggibile, es. "Sett. del 04/05 · Lun · Pranzo". */
+  label: string;
+  dishCount: number;
+  checked: boolean;
+}
+
+const granularSlots = ref<GranularSlot[]>([]);
+
+/** Almeno uno slot spuntato (serve per abilitare il pulsante Importa). */
+const hasCheckedSlots = computed(() => granularSlots.value.some((s) => s.checked));
+
+/** Costruisce la lista degli slot selezionabili dai dati del file. */
+function buildGranularSlots(data: BackupData): GranularSlot[] {
+  const MEAL_ORDER = [
+    'colazione',
+    'merenda_mattina',
+    'pranzo',
+    'merenda_pomeriggio',
+    'cena',
+  ];
+  const slots: GranularSlot[] = [];
+  for (const week of data.weeks) {
+    const wLabel = formatWeekLabel(week.id);
+    const sorted = week.slots
+      .filter((s) => s.dishes.length > 0)
+      .sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        return MEAL_ORDER.indexOf(a.meal) - MEAL_ORDER.indexOf(b.meal);
+      });
+    for (const slot of sorted) {
+      slots.push({
+        key: { weekId: week.id, day: slot.day, meal: slot.meal },
+        label: `${wLabel} · ${slotLabel(slot.day, slot.meal)}`,
+        dishCount: slot.dishes.length,
+        checked: true, // default: tutti spuntati
+      });
+    }
+  }
+  return slots;
+}
+
+// ── Nomi pasto e giorno per la visualizzazione ─────────────────────────────
 
 const MEAL_LABELS: Record<string, string> = {
   colazione: 'Colazione',
@@ -150,6 +205,40 @@ async function onFileSelected(event: Event) {
         ? e.message
         : 'Errore imprevisto durante la lettura del file.';
     step.value = 'error';
+  }
+}
+
+// ── Navigazione tra step ───────────────────────────────────────────────────
+
+function goToModeSelect() {
+  importMode.value = 'overwrite';
+  step.value = 'mode-select';
+}
+
+function goToGranularSelect() {
+  if (!parsedData.value) return;
+  granularSlots.value = buildGranularSlots(parsedData.value);
+  step.value = 'granular-select';
+}
+
+/** Emette `confirm` con overwrite mode (nessuna selezione slot necessaria). */
+function confirmOverwrite() {
+  if (!parsedData.value) return;
+  emit('confirm', parsedData.value, 'overwrite', []);
+}
+
+/** Emette `confirm` con la lista degli slot spuntati. */
+function confirmGranular() {
+  if (!parsedData.value) return;
+  const selected = granularSlots.value
+    .filter((s) => s.checked)
+    .map((s) => s.key);
+  emit('confirm', parsedData.value, 'granular', selected);
+}
+
+function toggleAll(checked: boolean) {
+  for (const s of granularSlots.value) {
+    s.checked = checked;
   }
 }
 </script>
@@ -275,18 +364,121 @@ async function onFileSelected(event: Event) {
 
         <!-- Azioni -->
         <div class="form-actions">
-          <!--
-            TODO T6.4: wiring "Prosegui →" → apre selezione modalità import
-            (sovrascrivi / granulare). Per ora emette `confirm` che il gestore
-            in WeekView gestirà.
-          -->
-          <button
-            class="btn-primary"
-            @click="emit('confirm', parsedData)"
-          >
+          <button class="btn-primary" @click="goToModeSelect">
             Prosegui →
           </button>
           <button @click="emit('close')">Annulla</button>
+        </div>
+      </template>
+
+      <!-- ── Step 5: scelta modalità (T6.4) ── -->
+      <template v-else-if="step === 'mode-select'">
+        <p class="modal-desc">Come vuoi importare il menù ricevuto?</p>
+
+        <div class="mode-options">
+          <label class="mode-option">
+            <input
+              v-model="importMode"
+              type="radio"
+              name="import-mode"
+              value="overwrite"
+            />
+            <span class="mode-option-content">
+              <strong>Sovrascrivi tutto</strong>
+              <span class="mode-option-desc">
+                Sostituisce interamente le settimane presenti nel file. Le altre
+                settimane locali restano invariate.
+              </span>
+            </span>
+          </label>
+
+          <label class="mode-option">
+            <input
+              v-model="importMode"
+              type="radio"
+              name="import-mode"
+              value="granular"
+            />
+            <span class="mode-option-content">
+              <strong>Scegli slot per slot</strong>
+              <span class="mode-option-desc">
+                Scegli esattamente quali pasti importare. Per ogni slot
+                selezionato, i piatti del file sostituiranno i tuoi.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button
+            v-if="importMode === 'overwrite'"
+            class="btn-primary"
+            @click="confirmOverwrite"
+          >
+            ✅ Importa
+          </button>
+          <button
+            v-else
+            class="btn-primary"
+            @click="goToGranularSelect"
+          >
+            Avanti →
+          </button>
+          <button class="btn-secondary" @click="step = 'preview'">
+            ← Indietro
+          </button>
+        </div>
+      </template>
+
+      <!-- ── Step 6: selezione granulare slot (T6.5) ── -->
+      <template v-else-if="step === 'granular-select'">
+        <p class="modal-desc">
+          Seleziona i pasti da importare. I piatti presenti negli slot spuntati
+          sostituiranno quelli locali.
+        </p>
+
+        <div class="granular-toolbar">
+          <button class="link-btn" @click="toggleAll(true)">Seleziona tutti</button>
+          <span class="separator">·</span>
+          <button class="link-btn" @click="toggleAll(false)">Deseleziona tutti</button>
+        </div>
+
+        <div class="granular-list">
+          <label
+            v-for="(gs, idx) in granularSlots"
+            :key="idx"
+            class="granular-item"
+            :class="{ 'granular-item--checked': gs.checked }"
+          >
+            <input
+              v-model="gs.checked"
+              type="checkbox"
+              class="granular-checkbox"
+            />
+            <span class="granular-label">
+              {{ gs.label }}
+              <span class="granular-count">
+                ({{ gs.dishCount }} {{ gs.dishCount === 1 ? 'piatto' : 'piatti' }})
+              </span>
+            </span>
+          </label>
+
+          <p v-if="granularSlots.length === 0" class="no-dishes">
+            Nessun piatto nel file da importare.
+          </p>
+        </div>
+
+        <div class="form-actions">
+          <button
+            class="btn-primary"
+            :disabled="!hasCheckedSlots"
+            @click="confirmGranular"
+          >
+            ✅ Importa
+          </button>
+          <button class="btn-secondary" @click="step = 'mode-select'">
+            ← Indietro
+          </button>
         </div>
       </template>
     </div>
@@ -445,6 +637,115 @@ async function onFileSelected(event: Event) {
   color: #777;
 }
 
+/* ── Modalità import (T6.4) ── */
+.mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.mode-option:has(input:checked) {
+  border-color: #2244aa;
+  background: #f4f6ff;
+}
+
+.mode-option input[type='radio'] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.mode-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.mode-option-desc {
+  font-size: 0.82rem;
+  color: #666;
+  font-weight: 400;
+}
+
+/* ── Selezione granulare (T6.5) ── */
+.granular-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.separator {
+  color: #ccc;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #2244aa;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-btn:hover {
+  color: #1a3388;
+}
+
+.granular-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.granular-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 5px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: background 0.1s;
+}
+
+.granular-item--checked {
+  background: #f4f6ff;
+  border-color: #aabbee;
+}
+
+.granular-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.granular-label {
+  flex: 1;
+}
+
+.granular-count {
+  font-size: 0.78rem;
+  color: #888;
+  margin-left: 0.25rem;
+}
+
 /* ── Azioni ── */
 .form-actions {
   display: flex;
@@ -463,8 +764,13 @@ async function onFileSelected(event: Event) {
   min-height: 44px;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #1a3388;
+}
+
+.btn-primary:disabled {
+  background: #99aadd;
+  cursor: not-allowed;
 }
 
 .btn-secondary {

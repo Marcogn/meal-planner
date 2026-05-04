@@ -5,6 +5,7 @@ import { useElementiStore } from '../stores/elementiStore';
 import { weekIdToMonday, formatWeekLabel, getCurrentWeekId } from '../domain/week';
 import { computeWeeklyFrequencies } from '../domain/frequency';
 import { removeDishFromSlot } from '../storage/weeks';
+import { importWeeks, type ImportMode, type SlotKey } from '../storage/backup';
 import FormAggiuntaPiatto from '../components/FormAggiuntaPiatto.vue';
 import ReminderFrequenze from '../components/ReminderFrequenze.vue';
 import CondividiModal from '../components/CondividiModal.vue';
@@ -132,12 +133,12 @@ const showImportaMenu = ref(false);
 
 /**
  * Gestore dell'evento `confirm` emesso da `ImportaMenuModal`.
- * Riceve i dati parsati dal file; la logica di import verrà implementata
- * in T6.4 (scelta modalità sovrascrivi / granulare).
- * Per ora chiude il modal.
+ * Chiama `importWeeks` con la modalità e gli slot scelti dall'utente,
+ * poi aggiorna la vista e chiude il modal.
  */
-function onImportaConfirm(_data: BackupData) {
-  // TODO T6.4: aprire il selettore di modalità di import
+async function onImportaConfirm(data: BackupData, mode: ImportMode, selectedSlots: SlotKey[]) {
+  await importWeeks(data, mode, selectedSlots);
+  await settimanaStore.refresh();
   showImportaMenu.value = false;
 }
 

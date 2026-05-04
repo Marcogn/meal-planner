@@ -109,8 +109,10 @@
   - `CondividiModal.vue`: radio "Questa settimana" / "Scegli settimane" (checkboxes ±4 settimane attorno alla corrente). Conferma → `exportWeeks()` + download JSON. Pulsante "📤 Condividi" aggiunto a `WeekView.vue` nella barra di navigazione.
 - [x] **T6.3** UI Import condivisione: file picker, parsing, anteprima del menù ricevuto.
   - `parseSharedFile(file)` aggiunto a `backup.ts` (refactoring: helper privato `readAndValidate` condiviso con `importAll`). `ImportaMenuModal.vue`: file picker → parse → anteprima (settimane, piatti per slot, elementi referenziati). Pulsante "📥 Importa" in `WeekView.vue`. Emette `confirm(BackupData)` per T6.4. 106 test passano.
-- [ ] **T6.4** Modalità import: radio "Sovrascrivi tutto" / "Scegli slot per slot".
-- [ ] **T6.5** Modalità granulare: per ogni `(giorno, pasto)` con piatto importabile, checkbox per accettare. Default: tutti spuntati.
+- [x] **T6.4** Modalità import: radio "Sovrascrivi tutto" / "Scegli slot per slot".
+  - `importWeeks(data, mode, selectedSlots?)` in `backup.ts`: overwrite sostituisce le settimane del file, granulare importa solo gli slot selezionati. `ImportaMenuModal`: step `mode-select` con radio + descrizioni; in overwrite → emette subito, in granulare → passa a `granular-select`. `WeekView.onImportaConfirm` chiama `importWeeks` e fa refresh. 11 nuovi test (115 totali).
+- [x] **T6.5** Modalità granulare: per ogni `(giorno, pasto)` con piatto importabile, checkbox per accettare. Default: tutti spuntati.
+  - `ImportaMenuModal`: step `granular-select` con lista checkbox (ordinata giorno+pasto), "Seleziona tutti / Deseleziona tutti", pulsante Importa disabilitato se nessuno slot spuntato.
 - [ ] **T6.6** Gestione Elementi mancanti: se il file referenzia Elementi che non esistono localmente, dialog "Aggiungi questi N elementi al tuo archivio?". Conflitti di nome con frequenze diverse → sub-dialog "tieni il tuo / sovrascrivi / rinomina".
 - [ ] **T6.7** Test integrazione completo: export da menù A → import in menù B → verifica integrità.
 

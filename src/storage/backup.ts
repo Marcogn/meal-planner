@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { appDb } from './db';
-import type { Element, Week } from '../domain/types';
+import type { DayOfWeek, Element, MealType, Week } from '../domain/types';
 
 // ---- Tipi del formato backup ----
 
@@ -234,6 +234,18 @@ async function readAndValidate(file: File): Promise<BackupData> {
   return result.data;
 }
 
+// ---- Tipi per l'import condiviso ----
+
+/** Modalità di importazione del menù condiviso. */
+export type ImportMode = 'overwrite' | 'granular';
+
+/** Identifica univocamente uno slot (settimana + giorno + pasto). */
+export interface SlotKey {
+  weekId: string;
+  day: DayOfWeek;
+  meal: MealType;
+}
+
 // ---- Import (API pubblica) ----
 
 /**
@@ -268,4 +280,73 @@ export async function importAll(file: File): Promise<void> {
       await appDb.weeks.bulkAdd(data.weeks as Week[]);
     }
   });
+}
+
+/**
+ * Importa le settimane da `data` nel DB locale.
+ *
+ * - `overwrite`: sostituisce interamente ogni settimana presente nel file
+ *   (solo le settimane nel file vengono toccate; le altre restano invariate).
+ * - `granular`: importa solo gli slot indicati in `selectedSlots`.
+ *   Per ogni slot selezionato, i piatti del file sostituiscono quelli locali
+ *   per quello slot specifico. Se la settimana locale non esiste, viene creata.
+ *
+ * Gli Elementi nel file NON vengono toccati (gestiti in T6.6).
+ */
+export async function importWeeks(
+  data: BackupData,
+  mode: ImportMode,
+  selectedSlots: SlotKey[] = [],
+): Promise<void> {
+  if (mode === 'overwrite') {
+    if (data.weeks.length > 0) {
+      await appDb.weeks.bulkPut(data.weeks as Week[]);
+    }
+    return;
+  }
+
+  // Modalità granulare: nessuno slot selezionato → nessuna scrittura
+  if (selectedSlots.length === 0) return;
+
+  // Raggruppa gli slot per weekId per minimizzare le letture DB
+  const byWeek = new Map<string, SlotKey[]>();
+  for (const sk of selectedSlots) {
+    const list = byWeek.get(sk.weekId) ?? [];
+    list.push(sk);
+    byWeek.set(sk.weekId, list);
+  }
+
+  for (const [weekId, weekSlots] of byWeek) {
+    const fileWeek = data.weeks.find((w) => w.id === weekId);
+    if (!fileWeek) continue;
+
+    // Ottieni la settimana locale o creane una nuova con i metadati del file
+    const localWeek: Week = (await appDb.weeks.get(weekId)) ?? {
+      id: weekId,
+      isoWeekStart: fileWeek.isoWeekStart,
+      slots: [],
+      updatedAt: Date.now(),
+    };
+
+    // Copia gli slot (evita mutazioni del record Dexie)
+    const slots: Week['slots'] = localWeek.slots.map((s) => ({
+      ...s,
+      dishes: [...s.dishes],
+    }));
+
+    for (const sk of weekSlots) {
+      const fileSlot = fileWeek.slots.find((s) => s.day === sk.day && s.meal === sk.meal);
+      if (!fileSlot) continue;
+
+      // Rimuovi eventuale slot locale per questo (giorno, pasto)
+      const idx = slots.findIndex((s) => s.day === sk.day && s.meal === sk.meal);
+      if (idx >= 0) slots.splice(idx, 1);
+
+      // Aggiungi lo slot dal file (anche se vuoto, per sovrascrivere)
+      slots.push({ day: sk.day, meal: sk.meal, dishes: [...fileSlot.dishes] });
+    }
+
+    const updated: Week = { ...localWeek, slots, updatedAt: Date.now() };
+    await appDb.weeks.put(updated);
+  }
 }
