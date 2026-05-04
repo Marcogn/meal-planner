@@ -53,7 +53,8 @@
 
 ## Fase 2 — UI: Elementi (tab "Elementi")
 
-- [ ] **T2.1** Layout base App: header, navigazione tra tab (Settimana / Elementi / Backup), routing.
+- [x] **T2.1** Layout base App: header, navigazione tra tab (Settimana / Elementi / Backup), routing.
+  - App.vue: header con titolo "Menu Planner" + 3 tab (Settimana /week, Elementi /elementi, Backup /backup). Stub views per Elementi e Backup. Rotte legacy /dishes, /settings, /import-export mantenute ma non in nav. 81 test, build e lint passano.
 - [ ] **T2.2** Pagina Elementi: lista degli Elementi definiti, ordinata alfabeticamente. Empty state ("Nessun elemento ancora — aggiungine uno").
 - [ ] **T2.3** Form creazione Elemento: nome, frequenza (1-5 + ∞). Validazione: nome non vuoto, no duplicati (case-insensitive).
 - [ ] **T2.4** Edit/Delete Elemento. Conferma su delete se l'Elemento è usato in qualche piatto (mostrare quanti piatti). Su conferma: rimuovere l'Elemento da tutti i piatti che lo referenziano (i piatti restano, perdono solo quel componente).
