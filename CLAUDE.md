@@ -26,6 +26,7 @@ Prima di ogni task, leggi le sezioni pertinenti di questi tre file. Sono la **fo
 
 ## Decisioni già prese (non rimetterle in discussione senza chiedere)
 
+- **Stack scelto e congelato**: Vue 3 (Composition API + `<script setup>`), Pinia, Vue Router 4 (hash history), Vite + vite-plugin-pwa, Dexie per IndexedDB. Non si cambia a metà progetto (vedi `TASKS.md` sezione "Stack scelto").
 - **PWA installabile** (manifest + service worker), non web app classica. Motivo: Safari iOS evicta dati dopo 7gg di inattività se l'app non è "Add to Home Screen".
 - **IndexedDB** per dati di dominio, **non localStorage**. localStorage ammesso solo per preferenze UI.
 - **TypeScript** obbligatorio. No `any` non motivato.

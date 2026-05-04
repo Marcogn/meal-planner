@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router';
+import IosInstallBanner from './components/IosInstallBanner.vue';
 </script>
 
 <template>
@@ -14,6 +15,7 @@ import { RouterLink, RouterView } from 'vue-router';
   <main>
     <RouterView />
   </main>
+  <IosInstallBanner />
 </template>
 
 <style scoped>

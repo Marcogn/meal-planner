@@ -62,8 +62,8 @@ async function saveSettings() {
       <p>
         Penalizza i piatti usati nelle ultime
         <input
-          type="number"
           v-model="recencyWindowWeeks"
+          type="number"
           min="1"
           max="52"
           class="inline-num"
@@ -94,10 +94,10 @@ async function saveSettings() {
               </select>
             </td>
             <td>
-              <input type="number" v-model="c.minPerWeek" min="0" placeholder="—" />
+              <input v-model="c.minPerWeek" type="number" min="0" placeholder="—" />
             </td>
             <td>
-              <input type="number" v-model="c.maxPerWeek" min="1" placeholder="—" />
+              <input v-model="c.maxPerWeek" type="number" min="1" placeholder="—" />
             </td>
             <td>
               <button @click="removeConstraint(i)">Rimuovi</button>

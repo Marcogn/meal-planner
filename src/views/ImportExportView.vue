@@ -85,7 +85,7 @@ async function doImport(event: Event) {
     <section>
       <h3>Import</h3>
       <label class="checkbox-label">
-        <input type="checkbox" v-model="overwrite" />
+        <input v-model="overwrite" type="checkbox" />
         Sovrascrivi elementi in conflitto (stessa id)
       </label>
       <br />
