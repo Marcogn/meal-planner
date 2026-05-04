@@ -22,7 +22,8 @@
 
 - [x] **T0.1** Inizializzare progetto Vite + TS + framework scelto. Configurare ESLint + Prettier. Verificare che `npm run dev` apra una pagina vuota e `npm run build` produca `dist/`.
   - Stack: Vue 3 + Vite + TS + Pinia + Vue Router. ESLint migrato a flat config (v10). Build e test passano.
-- [ ] **T0.2** Configurare PWA: `vite-plugin-pwa` (o equivalente), `manifest.json`, icone placeholder (512, 192, apple-touch 180). Aggiungere meta tag iOS in `index.html`. Verificare che Lighthouse o equivalente confermi "Installable".
+- [x] **T0.2** Configurare PWA: `vite-plugin-pwa` (o equivalente), `manifest.json`, icone placeholder (512, 192, apple-touch 180). Aggiungere meta tag iOS in `index.html`. Verificare che Lighthouse o equivalente confermi "Installable".
+  - Icone PNG valide generate (192, 512, 180). Manifest aggiornato (name, short_name, lang, icons). Meta tag iOS in `index.html`. Banner "Aggiungi a schermata Home" per Safari iOS in `IosInstallBanner.vue`.
 - [ ] **T0.3** Configurare Vitest. Scrivere un test sentinella `describe('sanity', () => it('runs', () => expect(1).toBe(1)))` e farlo passare.
 - [ ] **T0.4** Creare struttura cartelle come da `ARCHITECTURE.md` sezione 3. File vuoti o stub.
 
