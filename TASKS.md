@@ -134,7 +134,8 @@
 
 ## Fase 8 — Deploy
 
-- [ ] **T8.1** Configurare GitHub Actions per build + deploy su GitHub Pages (o equivalente).
+- [x] **T8.1** Configurare GitHub Actions per build + deploy su GitHub Pages (o equivalente).
+  - `.github/workflows/deploy.yml`: build job (checkout → node 20 → npm ci → test → build → upload artifact) + deploy job (deploy-pages@v4). `vite.config.ts`: `base: '/menu-planner/'`, `start_url/scope: '/menu-planner/'`, icone con path relativo. 134 test passano, build OK.
 - [ ] **T8.2** Verifica primo deploy: l'app si apre, è installabile, i dati sopravvivono al reload.
 
 ---
