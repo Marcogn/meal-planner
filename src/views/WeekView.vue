@@ -5,9 +5,13 @@ import { useElementiStore } from '../stores/elementiStore';
 import { weekIdToMonday, formatWeekLabel, getCurrentWeekId } from '../domain/week';
 import { computeWeeklyFrequencies } from '../domain/frequency';
 import { removeDishFromSlot } from '../storage/weeks';
+import { importWeeks, analyzeElementImport, applyElementDecisions, type ImportMode, type SlotKey, type ElementImportDecisions } from '../storage/backup';
 import FormAggiuntaPiatto from '../components/FormAggiuntaPiatto.vue';
 import ReminderFrequenze from '../components/ReminderFrequenze.vue';
+import CondividiModal from '../components/CondividiModal.vue';
+import ImportaMenuModal from '../components/ImportaMenuModal.vue';
 import type { DayOfWeek, MealType, Dish } from '../domain/types';
+import type { BackupData } from '../storage/backup';
 
 const settimanaStore = useSettimanaStore();
 const elementiStore = useElementiStore();
@@ -121,6 +125,32 @@ function closeForm() {
   showForm.value = false;
 }
 
+// T6.2 — Modal "Condividi menù"
+const showCondividi = ref(false);
+
+// T6.3 — Modal "Importa menù"
+const showImportaMenu = ref(false);
+
+/**
+ * Gestore dell'evento `confirm` emesso da `ImportaMenuModal`.
+ * 1. Applica le decisioni sugli elementi (aggiunge mancanti, risolve conflitti,
+ *    rimappa gli ID nelle dishes) → `processedData`.
+ * 2. Importa le settimane nel DB con la modalità scelta.
+ * 3. Aggiorna la vista settimanale e l'elenco degli elementi.
+ */
+async function onImportaConfirm(
+  data: BackupData,
+  mode: ImportMode,
+  selectedSlots: SlotKey[],
+  decisions: ElementImportDecisions,
+) {
+  const analysis = await analyzeElementImport(data);
+  const processedData = await applyElementDecisions(data, analysis, decisions);
+  await importWeeks(processedData, mode, selectedSlots);
+  await Promise.all([settimanaStore.refresh(), elementiStore.load()]);
+  showImportaMenu.value = false;
+}
+
 onMounted(async () => {
   await Promise.all([settimanaStore.loadCurrentWeek(), elementiStore.load()]);
 });
@@ -151,6 +181,26 @@ onMounted(async () => {
         @click="settimanaStore.goToToday()"
       >
         Oggi
+      </button>
+
+      <!-- T6.2 — Condividi menù -->
+      <button
+        class="share-btn"
+        title="Condividi menù"
+        aria-label="Condividi menù"
+        @click="showCondividi = true"
+      >
+        📤 Condividi
+      </button>
+
+      <!-- T6.3 — Importa menù condiviso -->
+      <button
+        class="import-btn"
+        title="Importa menù condiviso"
+        aria-label="Importa menù condiviso"
+        @click="showImportaMenu = true"
+      >
+        📥 Importa
       </button>
     </div>
 
@@ -287,6 +337,20 @@ onMounted(async () => {
       @close="closeForm"
     />
 
+    <!-- T6.2 — Modal condivisione menù -->
+    <CondividiModal
+      v-if="showCondividi"
+      :current-week-id="settimanaStore.currentWeekId"
+      @close="showCondividi = false"
+    />
+
+    <!-- T6.3 — Modal import menù condiviso -->
+    <ImportaMenuModal
+      v-if="showImportaMenu"
+      @close="showImportaMenu = false"
+      @confirm="onImportaConfirm"
+    />
+
     <!-- T4.1 — Pannello reminder frequenze -->
     <ReminderFrequenze
       :frequencies="frequencies"
@@ -339,6 +403,31 @@ onMounted(async () => {
 
 .today-btn:hover {
   background: #dde6ff;
+}
+
+.share-btn,
+.import-btn {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.6rem;
+  min-height: 44px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.share-btn:hover {
+  background: #eef8ee;
+  border-color: #1a7a1a;
+  color: #1a7a1a;
+}
+
+.import-btn:hover {
+  background: #eef2ff;
+  border-color: #99aadd;
+  color: #2244aa;
 }
 
 /* ── Toggle pasti opzionali ── */
