@@ -12,7 +12,7 @@ const backupStore = useBackupStore();
 
   <header>
     <div class="header-inner">
-      <span class="app-title">Menu Planner</span>
+      <h1 class="app-title">Menu Planner</h1>
       <nav aria-label="Navigazione principale">
         <RouterLink to="/week">Settimana</RouterLink>
         <RouterLink to="/elementi">Elementi</RouterLink>
@@ -53,6 +53,8 @@ header {
   font-size: 1rem;
   white-space: nowrap;
   flex-shrink: 0;
+  margin: 0;
+  line-height: 1;
 }
 
 nav {
