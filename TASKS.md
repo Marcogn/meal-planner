@@ -127,8 +127,10 @@
 - [x] **T7.3** Audit Lighthouse: PWA score, performance, accessibilità. Fix dei major.
   - Icone manifest con `purpose: 'any maskable'`. `<meta name="description">` + `mobile-web-app-capable` in `index.html`. Titolo app da `<span>` a `<h1>` (gerarchia heading corretta h1→h2). Build conferma manifest aggiornato.
 - [ ] **T7.4** Test su Safari iOS reale: installazione "Add to Home Screen", apertura offline, persistenza dopo 7+ giorni di non utilizzo (può essere documentato in checklist manuale).
-- [ ] **T7.5** README.md: come installare, come deployare su GitHub Pages, come fare backup.
-- [ ] **T7.6** Icone PWA definitive (sostituire i placeholder).
+- [x] **T7.5** README.md: come installare, come deployare su GitHub Pages, come fare backup.
+  - README completamente riscritto: Indice, Funzionalità, Installazione per sviluppo, Script disponibili, Installare l'app (iOS/Android/Desktop), Deploy su GitHub Pages (workflow YAML completo, note su base path), Come fare backup (export, import, condivisione menù), Architettura aggiornata con tabella layer e scelte tecniche.
+- [x] **T7.6** Icone PWA definitive (sostituire i placeholder).
+  - Generate con Python stdlib (struct + zlib): sfondo verde #2c6e49 (maskable-safe), card bianca, header verde con 7 pallini giorno, griglia 3×3 slot pasto (7 verdi = pianificati, 2 chiari = vuoti). Tre dimensioni: 512×512, 192×192, 180×180.
 
 ## Fase 8 — Deploy
 
