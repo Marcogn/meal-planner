@@ -7,9 +7,12 @@ const backupStore = useBackupStore();
 </script>
 
 <template>
+  <!-- Skip link: visibile solo con tastiera, salta la navigazione -->
+  <a class="skip-link" href="#main-content">Vai al contenuto principale</a>
+
   <header>
     <div class="header-inner">
-      <span class="app-title">Menu Planner</span>
+      <h1 class="app-title">Menu Planner</h1>
       <nav aria-label="Navigazione principale">
         <RouterLink to="/week">Settimana</RouterLink>
         <RouterLink to="/elementi">Elementi</RouterLink>
@@ -20,7 +23,7 @@ const backupStore = useBackupStore();
       </nav>
     </div>
   </header>
-  <main>
+  <main id="main-content" tabindex="-1">
     <RouterView />
   </main>
   <IosInstallBanner />
@@ -50,6 +53,8 @@ header {
   font-size: 1rem;
   white-space: nowrap;
   flex-shrink: 0;
+  margin: 0;
+  line-height: 1;
 }
 
 nav {

@@ -55,6 +55,15 @@ const dayHeaders = computed(() => {
   });
 });
 
+// T7.1 — dayHeaders arricchiti con il conteggio piatti per il tab bar giornaliero.
+// Calcolato separatamente per evitare di chiamare dayDishCount(day) 3× per ogni tab.
+const dayHeadersWithCount = computed(() =>
+  dayHeaders.value.map((dh) => ({
+    ...dh,
+    dishCount: dayDishCount(dh.day),
+  })),
+);
+
 // T3.2 — label formattata e flag "è la settimana corrente"
 const weekLabel = computed(() => formatWeekLabel(settimanaStore.currentWeekId));
 const isCurrentWeek = computed(
@@ -151,6 +160,16 @@ async function onImportaConfirm(
   showImportaMenu.value = false;
 }
 
+// T7.1 — Vista giornaliera ──────────────────────────────────────────────────
+
+/** Numero di piatti nel giorno `day` (sommando tutti i pasti). */
+function dayDishCount(day: DayOfWeek): number {
+  return visibleMeals.value.reduce(
+    (acc, m) => acc + getDishes(day, m.type).length,
+    0,
+  );
+}
+
 onMounted(async () => {
   await Promise.all([settimanaStore.loadCurrentWeek(), elementiStore.load()]);
 });
@@ -181,6 +200,17 @@ onMounted(async () => {
         @click="settimanaStore.goToToday()"
       >
         Oggi
+      </button>
+
+      <!-- T7.1 — Toggle vista giornaliera / settimanale -->
+      <button
+        class="view-toggle-btn"
+        :title="settimanaStore.dailyView ? 'Passa alla vista settimanale' : 'Passa alla vista giornaliera'"
+        :aria-label="settimanaStore.dailyView ? 'Passa alla vista settimanale' : 'Passa alla vista giornaliera'"
+        :aria-pressed="settimanaStore.dailyView"
+        @click="settimanaStore.setDailyView(!settimanaStore.dailyView)"
+      >
+        {{ settimanaStore.dailyView ? '📅 Settimana' : '📆 Giorno' }}
       </button>
 
       <!-- T6.2 — Condividi menù -->
@@ -220,32 +250,53 @@ onMounted(async () => {
       </label>
     </div>
 
-    <!-- T3.3 — Griglia settimanale -->
-    <div class="grid-wrapper">
-      <div
-        class="week-grid"
-        :style="{ gridTemplateColumns: `var(--meal-col-w) repeat(7, minmax(4rem, 1fr))` }"
-      >
-        <!-- Riga header -->
-        <div class="cell cell--corner" aria-hidden="true"></div>
-        <div
-          v-for="dh in dayHeaders"
+    <!-- T7.1 — Vista giornaliera ─────────────────────────────────────────── -->
+    <template v-if="settimanaStore.dailyView">
+      <!-- Selettore giorno: 7 tab cliccabili -->
+      <div class="day-tabs" role="tablist" aria-label="Seleziona giorno">
+        <button
+          v-for="dh in dayHeadersWithCount"
           :key="dh.day"
-          class="cell cell--day-header"
+          class="day-tab"
+          :class="{ 'day-tab--active': settimanaStore.selectedDay === dh.day }"
+          role="tab"
+          :aria-selected="settimanaStore.selectedDay === dh.day"
+          :aria-controls="`day-panel-${dh.day}`"
+          :aria-label="dh.dishCount > 0
+            ? `${dh.shortLabel} ${dh.date}, ${dh.dishCount} ${dh.dishCount === 1 ? 'piatto' : 'piatti'}`
+            : `${dh.shortLabel} ${dh.date}`"
+          @click="settimanaStore.selectedDay = dh.day"
         >
-          <span class="day-name">{{ dh.shortLabel }}</span>
-          <span class="day-date">{{ dh.date }}</span>
-        </div>
+          <span class="day-tab-name" aria-hidden="true">{{ dh.shortLabel }}</span>
+          <span class="day-tab-date" aria-hidden="true">{{ dh.date }}</span>
+          <!-- Indicatore piatti: dot visivo, informazione già nel aria-label del bottone -->
+          <span
+            v-if="dh.dishCount > 0"
+            class="day-tab-dot"
+            aria-hidden="true"
+          ></span>
+        </button>
+      </div>
 
-        <!-- Righe pasti -->
-        <template v-for="meal in visibleMeals" :key="meal.type">
-          <div class="cell cell--meal-label">{{ meal.label }}</div>
-
+      <!-- Dettaglio giorno selezionato -->
+      <div
+        v-for="dh in dayHeaders"
+        v-show="settimanaStore.selectedDay === dh.day"
+        :id="`day-panel-${dh.day}`"
+        :key="dh.day"
+        class="day-panel"
+        role="tabpanel"
+        :aria-label="`${dh.shortLabel} ${dh.date}`"
+      >
+        <div
+          v-for="meal in visibleMeals"
+          :key="meal.type"
+          class="day-meal-row"
+        >
+          <div class="day-meal-label">{{ meal.label }}</div>
           <div
-            v-for="dh in dayHeaders"
-            :key="dh.day"
-            class="cell cell--slot"
-            :class="{ 'cell--slot-empty': getDishes(dh.day, meal.type).length === 0 }"
+            class="day-meal-slot"
+            :class="{ 'day-meal-slot--empty': getDishes(dh.day, meal.type).length === 0 }"
             :role="getDishes(dh.day, meal.type).length === 0 ? 'button' : undefined"
             :tabindex="getDishes(dh.day, meal.type).length === 0 ? 0 : undefined"
             :aria-label="
@@ -271,14 +322,13 @@ onMounted(async () => {
               aria-hidden="true"
             >+</span>
 
-            <!-- Slot occupato: uno o più piatti -->
+            <!-- Slot occupato -->
             <template v-else>
               <div
                 v-for="dish in getDishes(dh.day, meal.type)"
                 :key="dish.id"
                 class="dish-card"
               >
-                <!-- Nome piatto + azioni -->
                 <div class="dish-header">
                   <span class="dish-name">{{ dish.name }}</span>
                   <div class="dish-actions">
@@ -300,8 +350,6 @@ onMounted(async () => {
                     </button>
                   </div>
                 </div>
-
-                <!-- T3.6 — Chip elementi -->
                 <div v-if="dish.elementIds.length > 0" class="chips">
                   <span
                     v-for="elId in dish.elementIds"
@@ -310,11 +358,11 @@ onMounted(async () => {
                     :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
                   >
                     {{ getChipData(elId).label }}
+                    <span v-if="getChipData(elId).exceeded" class="sr-only">(sforato)</span>
                   </span>
                 </div>
               </div>
 
-              <!-- Pulsante aggiungi ulteriore piatto -->
               <button
                 class="add-more-btn"
                 :aria-label="`Aggiungi altro piatto: ${meal.label} ${dh.shortLabel} ${dh.date}`"
@@ -324,9 +372,120 @@ onMounted(async () => {
               </button>
             </template>
           </div>
-        </template>
+        </div>
       </div>
-    </div>
+    </template>
+
+    <!-- T3.3 — Vista settimanale (griglia) ──────────────────────────────── -->
+    <template v-else>
+      <div class="grid-wrapper">
+        <div
+          class="week-grid"
+          :style="{ gridTemplateColumns: `var(--meal-col-w) repeat(7, minmax(4rem, 1fr))` }"
+        >
+          <!-- Riga header -->
+          <div class="cell cell--corner" aria-hidden="true"></div>
+          <div
+            v-for="dh in dayHeaders"
+            :key="dh.day"
+            class="cell cell--day-header"
+          >
+            <span class="day-name">{{ dh.shortLabel }}</span>
+            <span class="day-date">{{ dh.date }}</span>
+          </div>
+
+          <!-- Righe pasti -->
+          <template v-for="meal in visibleMeals" :key="meal.type">
+            <div class="cell cell--meal-label">{{ meal.label }}</div>
+
+            <div
+              v-for="dh in dayHeaders"
+              :key="dh.day"
+              class="cell cell--slot"
+              :class="{ 'cell--slot-empty': getDishes(dh.day, meal.type).length === 0 }"
+              :role="getDishes(dh.day, meal.type).length === 0 ? 'button' : undefined"
+              :tabindex="getDishes(dh.day, meal.type).length === 0 ? 0 : undefined"
+              :aria-label="
+                getDishes(dh.day, meal.type).length === 0
+                  ? `Aggiungi piatto: ${meal.label} ${dh.shortLabel} ${dh.date}`
+                  : undefined
+              "
+              @click="
+                getDishes(dh.day, meal.type).length === 0
+                  ? openAddForm(dh.day, meal.type)
+                  : undefined
+              "
+              @keydown.enter="
+                getDishes(dh.day, meal.type).length === 0
+                  ? openAddForm(dh.day, meal.type)
+                  : undefined
+              "
+            >
+              <!-- Slot vuoto -->
+              <span
+                v-if="getDishes(dh.day, meal.type).length === 0"
+                class="empty-hint"
+                aria-hidden="true"
+              >+</span>
+
+              <!-- Slot occupato: uno o più piatti -->
+              <template v-else>
+                <div
+                  v-for="dish in getDishes(dh.day, meal.type)"
+                  :key="dish.id"
+                  class="dish-card"
+                >
+                  <!-- Nome piatto + azioni -->
+                  <div class="dish-header">
+                    <span class="dish-name">{{ dish.name }}</span>
+                    <div class="dish-actions">
+                      <button
+                        class="action-btn"
+                        title="Modifica piatto"
+                        aria-label="Modifica piatto"
+                        @click.stop="openEditForm(dh.day, meal.type, dish)"
+                      >
+                        <span aria-hidden="true">✏️</span>
+                      </button>
+                      <button
+                        class="action-btn action-btn--danger"
+                        title="Elimina piatto"
+                        aria-label="Elimina piatto"
+                        @click.stop="deleteDish(dh.day, meal.type, dish.id)"
+                      >
+                        <span aria-hidden="true">🗑️</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- T3.6 — Chip elementi -->
+                  <div v-if="dish.elementIds.length > 0" class="chips">
+                    <span
+                      v-for="elId in dish.elementIds"
+                      :key="elId"
+                      class="chip"
+                      :class="{ 'chip--exceeded': getChipData(elId).exceeded }"
+                    >
+                      {{ getChipData(elId).label }}
+                      <span v-if="getChipData(elId).exceeded" class="sr-only">(sforato)</span>
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Pulsante aggiungi ulteriore piatto -->
+                <button
+                  class="add-more-btn"
+                  :aria-label="`Aggiungi altro piatto: ${meal.label} ${dh.shortLabel} ${dh.date}`"
+                  @click.stop="openAddForm(dh.day, meal.type)"
+                >
+                  +
+                </button>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
 
     <!-- T3.4 / T3.5 — Form modale aggiunta/modifica piatto -->
     <FormAggiuntaPiatto
@@ -620,5 +779,141 @@ onMounted(async () => {
   background: #eef2ff;
   border-color: #99aadd;
   color: #2244aa;
+}
+
+/* ── T7.1 Toggle vista giornaliera ── */
+.view-toggle-btn {
+  font-size: 0.82rem;
+  padding: 0.3rem 0.6rem;
+  min-height: 44px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.view-toggle-btn:hover,
+.view-toggle-btn[aria-pressed='true'] {
+  background: #eef2ff;
+  border-color: #99aadd;
+  color: #2244aa;
+}
+
+/* ── T7.1 Selettore giorni (tab bar) ── */
+.day-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0.4rem 0.5rem;
+  min-width: 44px;
+  min-height: 56px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 0.8rem;
+  position: relative;
+  transition: background 0.1s;
+  flex: 1;
+}
+
+.day-tab:hover {
+  background: #eef2ff;
+  border-color: #99aadd;
+}
+
+.day-tab--active {
+  background: #2244aa;
+  border-color: #2244aa;
+  color: #fff;
+}
+
+.day-tab--active:hover {
+  background: #1a339a;
+}
+
+.day-tab-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.day-tab-date {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.day-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2244aa;
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.day-tab--active .day-tab-dot {
+  background: #fff;
+}
+
+/* ── T7.1 Pannello giorno espanso ── */
+.day-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.day-meal-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.day-meal-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #444;
+  min-width: 7rem;
+  padding-top: 0.35rem;
+  flex-shrink: 0;
+}
+
+.day-meal-slot {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  min-height: 52px;
+  background: #fafafa;
+  word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 4px;
+}
+
+.day-meal-slot--empty {
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-meal-slot--empty:hover,
+.day-meal-slot--empty:focus-visible {
+  background: #eef2ff;
+  border-color: #99aadd;
+  outline: none;
 }
 </style>

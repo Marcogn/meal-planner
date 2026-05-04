@@ -121,7 +121,7 @@ const exceededCount = computed(() => rows.value.filter((r) => r.exceeded).length
         <span class="reminder__name">{{ row.name }}</span>
         <span
           class="reminder__count"
-          :aria-label="`${row.used} su ${row.maxLabel}`"
+          :aria-label="`${row.used} su ${row.maxLabel}${row.exceeded ? ', sforato' : ''}`"
         >{{ row.used }}/{{ row.maxLabel }}</span>
       </li>
     </ul>
@@ -154,7 +154,7 @@ const exceededCount = computed(() => rows.value.filter((r) => r.exceeded).length
 
 .reminder__empty {
   font-size: 0.85rem;
-  color: #888;
+  color: #595959;
   margin: 0;
 }
 

@@ -86,13 +86,16 @@ async function save() {
 </script>
 
 <template>
-  <div class="overlay" role="dialog" :aria-label="title" aria-modal="true" @click.self="emit('close')" @keydown.esc="emit('close')">
-    <div class="modal">
+  <div class="overlay" role="dialog" aria-labelledby="form-piatto-title" aria-modal="true" @click.self="emit('close')">
+    <div class="modal" @keydown.esc="emit('close')">
       <!-- Header -->
       <div class="modal-header">
-        <h3 class="modal-title">{{ title }}</h3>
+        <h3 id="form-piatto-title" class="modal-title">{{ title }}</h3>
         <p class="modal-subtitle">{{ MEAL_LABELS[meal] }}</p>
       </div>
+
+      <!-- Pulsante chiudi -->
+      <button class="modal-close" aria-label="Chiudi" @click="emit('close')">✕</button>
 
       <!-- Nome piatto -->
       <label class="field-label" for="fp-name">Nome piatto *</label>
@@ -103,6 +106,7 @@ async function save() {
         type="text"
         placeholder="es. mozzarella e insalata con pane"
         autocomplete="off"
+        autofocus
         @keydown.enter.prevent="save"
       />
 
@@ -182,6 +186,29 @@ async function save() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  position: relative;
+}
+
+/* Pulsante chiudi (×) in alto a destra */
+.modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  padding: 0.25rem 0.4rem;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 4px;
+  color: #595959;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
 }
 
 .modal-header {
@@ -287,14 +314,14 @@ async function save() {
 
 .el-freq {
   font-size: 0.78rem;
-  color: #888;
+  color: #595959;
   white-space: nowrap;
 }
 
 .no-results {
   padding: 0.6rem;
   font-size: 0.88rem;
-  color: #999;
+  color: #595959;
   font-style: italic;
 }
 
