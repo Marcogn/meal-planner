@@ -24,8 +24,10 @@
   - Stack: Vue 3 + Vite + TS + Pinia + Vue Router. ESLint migrato a flat config (v10). Build e test passano.
 - [x] **T0.2** Configurare PWA: `vite-plugin-pwa` (o equivalente), `manifest.json`, icone placeholder (512, 192, apple-touch 180). Aggiungere meta tag iOS in `index.html`. Verificare che Lighthouse o equivalente confermi "Installable".
   - Icone PNG valide generate (192, 512, 180). Manifest aggiornato (name, short_name, lang, icons). Meta tag iOS in `index.html`. Banner "Aggiungi a schermata Home" per Safari iOS in `IosInstallBanner.vue`.
-- [ ] **T0.3** Configurare Vitest. Scrivere un test sentinella `describe('sanity', () => it('runs', () => expect(1).toBe(1)))` e farlo passare.
-- [ ] **T0.4** Creare struttura cartelle come da `ARCHITECTURE.md` sezione 3. File vuoti o stub.
+- [x] **T0.3** Configurare Vitest. Scrivere un test sentinella `describe('sanity', () => it('runs', () => expect(1).toBe(1)))` e farlo passare.
+  - vitest.config.ts già presente. Sentinella in `src/__tests__/sanity.test.ts`. 10 test passano.
+- [x] **T0.4** Creare struttura cartelle come da `ARCHITECTURE.md` sezione 3. File vuoti o stub.
+  - Creati stub: `src/storage/{db,elements,weeks,backup}.ts`, `src/domain/{week,frequency}.ts`.
 
 ## Fase 1 — Dominio e storage
 
