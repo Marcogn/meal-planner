@@ -55,8 +55,10 @@
 
 - [x] **T2.1** Layout base App: header, navigazione tra tab (Settimana / Elementi / Backup), routing.
   - App.vue: header con titolo "Menu Planner" + 3 tab (Settimana /week, Elementi /elementi, Backup /backup). Stub views per Elementi e Backup. Rotte legacy /dishes, /settings, /import-export mantenute ma non in nav. 81 test, build e lint passano.
-- [ ] **T2.2** Pagina Elementi: lista degli Elementi definiti, ordinata alfabeticamente. Empty state ("Nessun elemento ancora — aggiungine uno").
-- [ ] **T2.3** Form creazione Elemento: nome, frequenza (1-5 + ∞). Validazione: nome non vuoto, no duplicati (case-insensitive).
+- [x] **T2.2** Pagina Elementi: lista degli Elementi definiti, ordinata alfabeticamente. Empty state ("Nessun elemento ancora — aggiungine uno").
+  - `ElementiView.vue` mostra lista alfabetica con nome e frequenza max. Empty state se lista vuota.
+- [x] **T2.3** Form creazione Elemento: nome, frequenza (1-5 + ∞). Validazione: nome non vuoto, no duplicati (case-insensitive).
+  - Modal form con input nome + select frequenza (1,2,3,4,5,∞). Errori di validazione da `ElementValidationError` mostrati inline. Nuovo store `elementiStore.ts`.
 - [ ] **T2.4** Edit/Delete Elemento. Conferma su delete se l'Elemento è usato in qualche piatto (mostrare quanti piatti). Su conferma: rimuovere l'Elemento da tutti i piatti che lo referenziano (i piatti restano, perdono solo quel componente).
 - [ ] **T2.5** Seed iniziale al primo avvio: alcuni Elementi predefiniti (`pasta` 3, `riso` 2, `pane` ∞, `formaggio` 1, `carne rossa` 2, `carne bianca` 3, `pesce` 3, `verdura` ∞, `frutta` ∞, `legumi` 3). L'utente può modificarli/eliminarli liberamente.
 
