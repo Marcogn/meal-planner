@@ -12,13 +12,15 @@ const backupStore = useBackupStore();
 
   <header>
     <div class="header-inner">
-      <h1 class="app-title">Menu Planner</h1>
+      <RouterLink to="/week" class="app-title-link" aria-label="Menu Planner – torna alla settimana">
+        <h1 class="app-title">Menu Planner</h1>
+      </RouterLink>
       <nav aria-label="Navigazione principale">
         <RouterLink to="/week">Settimana</RouterLink>
         <RouterLink to="/elementi">Elementi</RouterLink>
         <RouterLink to="/backup" class="nav-backup">
           Backup
-          <span v-if="backupStore.needsBackup" class="backup-badge" aria-label="Backup consigliato"></span>
+          <span v-if="backupStore.showReminder" class="backup-badge" aria-label="Backup consigliato"></span>
         </RouterLink>
       </nav>
     </div>
@@ -48,11 +50,20 @@ header {
   height: 52px;
 }
 
+.app-title-link {
+  text-decoration: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.app-title-link:hover .app-title {
+  color: #1a7a1a;
+}
+
 .app-title {
   font-weight: 700;
   font-size: 1rem;
   white-space: nowrap;
-  flex-shrink: 0;
   margin: 0;
   line-height: 1;
 }

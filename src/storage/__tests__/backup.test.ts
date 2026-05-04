@@ -146,7 +146,7 @@ describe('importAll', () => {
     expect(week?.slots[0].dishes[0].name).toBe('pasta');
   });
 
-  it('sovrascrive i dati esistenti nel DB', async () => {
+  it('aggiunge elementi nuovi e mantiene quelli esistenti nel DB', async () => {
     await createElement({ name: 'vecchio', maxFrequencyPerWeek: 1 });
     const backup = makeValidBackup({
       elements: [
@@ -155,16 +155,20 @@ describe('importAll', () => {
     });
     await importAll(makeFile(JSON.stringify(backup)));
     const elements = await getAllElements();
-    expect(elements).toHaveLength(1);
-    expect(elements[0].name).toBe('nuovo');
+    // Il backup aggiunge "nuovo" ma mantiene "vecchio" (merge, non overwrite)
+    expect(elements).toHaveLength(2);
+    const names = elements.map((e) => e.name).sort();
+    expect(names).toEqual(['nuovo', 'vecchio']);
   });
 
-  it('DB vuoto dopo import di backup senza dati', async () => {
+  it('elementi locali rimangono dopo import di backup senza elementi', async () => {
     await createElement({ name: 'formaggio', maxFrequencyPerWeek: 1 });
     const backup = makeValidBackup({ elements: [], weeks: [] });
     await importAll(makeFile(JSON.stringify(backup)));
     const elements = await getAllElements();
-    expect(elements).toHaveLength(0);
+    // Gli elementi locali vengono mantenuti (backup vuoto non li cancella)
+    expect(elements).toHaveLength(1);
+    expect(elements[0].name).toBe('formaggio');
   });
 
   it('lancia BackupImportError per JSON malformato', async () => {

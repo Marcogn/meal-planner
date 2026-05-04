@@ -112,7 +112,7 @@ onMounted(() => {
     <h2>Backup</h2>
 
     <!-- Banner reminder -->
-    <div v-if="backupStore.needsBackup" class="reminder-banner" role="alert">
+    <div v-if="backupStore.showReminder" class="reminder-banner" role="alert">
       <span class="reminder-icon">⚠️</span>
       <span v-if="backupStore.lastBackupTimestamp === null">
         Non hai ancora eseguito un backup. Esporta i tuoi dati per non perderli.
@@ -122,6 +122,7 @@ onMounted(() => {
         <strong>{{ backupStore.daysSinceLastBackup }} giorni fa</strong>.
         Ti consigliamo di eseguirne uno nuovo.
       </span>
+      <button class="reminder-dismiss" aria-label="Chiudi avviso" @click="backupStore.dismissReminder()">✕</button>
     </div>
 
     <!-- Info ultimo backup -->
@@ -147,7 +148,8 @@ onMounted(() => {
       <h3>Importa backup</h3>
       <p class="section-desc">
         Ripristina i tuoi dati da un file di backup precedentemente esportato.
-        <strong>Tutti i dati attuali verranno sostituiti.</strong>
+        Gli Elementi esistenti verranno aggiornati; quelli nuovi saranno aggiunti.
+        Le settimane del backup sostituiranno quelle locali.
       </p>
       <button class="btn-secondary" :disabled="importing" @click="openFilePicker">
         {{ importing ? 'Importazione…' : '⬆ Importa backup' }}
@@ -174,8 +176,9 @@ onMounted(() => {
           <strong>{{ pendingFile?.name }}</strong>.
         </p>
         <p class="warning-text">
-          ⚠️ Questa operazione <strong>sostituirà tutti i dati attuali</strong>
-          (Elementi e menù settimanali). L'operazione non è reversibile.
+          ⚠️ Gli Elementi esistenti verranno aggiornati con le frequenze del backup e quelli nuovi verranno aggiunti.
+          Le settimane presenti nel backup <strong>sostituiranno quelle locali</strong>.
+          L'operazione non è reversibile.
         </p>
         <div class="form-actions">
           <button class="btn-danger-solid" @click="confirmImport">Ripristina</button>
@@ -203,6 +206,30 @@ h2 {
   margin-bottom: 1rem;
   font-size: 0.95rem;
   color: #5d4037;
+}
+
+.reminder-dismiss {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5d4037;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  opacity: 0.7;
+}
+
+.reminder-dismiss:hover {
+  opacity: 1;
+}
+
+.reminder-dismiss:focus-visible {
+  outline: 2px solid #5d4037;
+  outline-offset: 2px;
+  border-radius: 2px;
+  opacity: 1;
 }
 
 .reminder-icon {

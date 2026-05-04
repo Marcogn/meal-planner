@@ -440,8 +440,14 @@ export async function parseSharedFile(file: File): Promise<BackupData> {
 }
 
 /**
- * Legge il file JSON, valida formato e schema, poi sovrascrive atomicamente
- * il DB (elementi + settimane) con i dati del backup.
+ * Legge il file JSON, valida formato e schema, poi importa i dati del backup:
+ *
+ * - **Elementi**: strategia di merge. Gli elementi già presenti vengono
+ *   aggiornati (compresa la frequenza massima); gli elementi presenti solo nel
+ *   backup vengono aggiunti; gli elementi locali non presenti nel backup restano
+ *   invariati.
+ * - **Settimane**: sostituzione completa (solo le settimane nel file vengono
+ *   toccate; il resto rimane invariato nel DB).
  *
  * Lancia `BackupImportError` con un messaggio localizzato in italiano in caso
  * di errore di lettura, formato sconosciuto, versione non supportata o schema non valido.
@@ -449,15 +455,14 @@ export async function parseSharedFile(file: File): Promise<BackupData> {
 export async function importAll(file: File): Promise<void> {
   const data = await readAndValidate(file);
 
-  // Sovrascrittura atomica
   await appDb.transaction('rw', [appDb.elements, appDb.weeks], async () => {
-    await appDb.elements.clear();
-    await appDb.weeks.clear();
+    // Elementi: upsert (aggiorna esistenti, aggiunge nuovi, lascia gli altri)
     if (data.elements.length > 0) {
-      await appDb.elements.bulkAdd(data.elements as Element[]);
+      await appDb.elements.bulkPut(data.elements as Element[]);
     }
+    // Settimane: sostituzione completa delle settimane presenti nel file
     if (data.weeks.length > 0) {
-      await appDb.weeks.bulkAdd(data.weeks as Week[]);
+      await appDb.weeks.bulkPut(data.weeks as Week[]);
     }
   });
 }

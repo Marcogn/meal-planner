@@ -188,18 +188,18 @@ onMounted(async () => {
       </button>
       <span class="week-label">{{ weekLabel }}</span>
       <button
-        class="nav-btn"
-        aria-label="Settimana successiva"
-        @click="settimanaStore.goToNextWeek()"
-      >
-        &#8594;
-      </button>
-      <button
         v-if="!isCurrentWeek"
         class="today-btn"
         @click="settimanaStore.goToToday()"
       >
         Oggi
+      </button>
+      <button
+        class="nav-btn"
+        aria-label="Settimana successiva"
+        @click="settimanaStore.goToNextWeek()"
+      >
+        &#8594;
       </button>
 
       <!-- T7.1 — Toggle vista giornaliera / settimanale -->
