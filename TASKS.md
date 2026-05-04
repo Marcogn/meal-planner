@@ -46,8 +46,10 @@
   - Classe `AppDB extends Dexie`, DB name `MenuPlannerV2` (separato dal legacy). Singleton `appDb` esportato. Build passa.
 - [x] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
   - `createElement`, `getAllElements`, `getElementById`, `updateElement`, `deleteElement`. `ElementValidationError` per nome vuoto/duplicato. 20 test passano (fake-indexeddb).
-- [ ] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
-- [ ] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
+- [x] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
+  - `getWeek`, `getOrCreateWeek`, `addDishToSlot`, `removeDishFromSlot`, `removeElementFromAllWeeks`. 16 test passano (fake-indexeddb).
+- [x] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
+  - Chiamata con optional chaining (`navigator.storage?.persist`). Log via `console.log`.
 
 ## Fase 2 — UI: Elementi (tab "Elementi")
 
