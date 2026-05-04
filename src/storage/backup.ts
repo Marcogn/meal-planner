@@ -296,6 +296,9 @@ export interface ElementImportDecisions {
   conflicts: ConflictDecision[];
 }
 
+/** Suffisso aggiunto al nome di un elemento importato con risoluzione 'rename'. */
+const RENAME_SUFFIX = ' (importato)';
+
 // ---- Import (API pubblica) ----
 
 /**
@@ -358,7 +361,6 @@ export async function applyElementDecisions(
   analysis: ElementImportAnalysis,
   decisions: ElementImportDecisions,
 ): Promise<BackupData> {
-
   const now = Date.now();
   // Mappa finale: fileElementId → localElementId
   const idRemap = new Map<string, string>(analysis.autoRemap);
@@ -400,7 +402,7 @@ export async function applyElementDecisions(
 
       case 'rename': {
         // Aggiungi l'elemento con il nuovo nome usando l'ID del file
-        const newName = dec.newName?.trim() ?? `${conflict.fileElement.name} (importato)`;
+        const newName = dec.newName?.trim() ?? `${conflict.fileElement.name}${RENAME_SUFFIX}`;
         await appDb.elements.put({ ...conflict.fileElement, name: newName, updatedAt: now });
         // Nessuna rimappatura: l'ID del file viene inserito direttamente
         break;
