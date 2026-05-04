@@ -99,6 +99,23 @@ export async function removeDishFromSlot(
 }
 
 /**
+ * Conta quanti piatti (in tutte le settimane) referenziano `elementId`.
+ * Usato per la conferma di eliminazione di un Elemento (T2.4).
+ */
+export async function countDishesUsingElement(elementId: ID): Promise<number> {
+  const allWeeks = await appDb.weeks.toArray();
+  let count = 0;
+  for (const week of allWeeks) {
+    for (const slot of week.slots) {
+      for (const dish of slot.dishes) {
+        if (dish.elementIds.includes(elementId)) count++;
+      }
+    }
+  }
+  return count;
+}
+
+/**
  * Rimuove `elementId` dalla lista `elementIds` di ogni piatto in tutte le settimane.
  * Chiamato quando si elimina un Elemento (T2.4 / cleanup).
  * I piatti restano (il nome rimane), perdono solo la referenza all'Elemento eliminato.
