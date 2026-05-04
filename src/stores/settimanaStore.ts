@@ -5,6 +5,7 @@ import { getCurrentWeekId, nextWeek, prevWeek, weekIdToMonday } from '../domain/
 import { getOrCreateWeek } from '../storage/weeks';
 
 const LS_KEY = 'menuPlanner.showOptionalMeals';
+const LS_DAILY_KEY = 'menuPlanner.dailyView';
 
 export const useSettimanaStore = defineStore('settimana', () => {
   const currentWeekId = ref<string>(getCurrentWeekId());
@@ -19,6 +20,24 @@ export const useSettimanaStore = defineStore('settimana', () => {
     localStorage.setItem(LS_KEY, String(value));
   }
 
+  // Vista giornaliera: persisted in localStorage; default false (weekly view)
+  const dailyView = ref<boolean>(localStorage.getItem(LS_DAILY_KEY) === 'true');
+
+  function setDailyView(value: boolean): void {
+    dailyView.value = value;
+    localStorage.setItem(LS_DAILY_KEY, String(value));
+  }
+
+  // Giorno selezionato nella vista giornaliera (1=lun … 7=dom).
+  // Calcolato dinamicamente: se siamo nella settimana corrente usa il giorno di oggi,
+  // altrimenti default a lunedì (1).
+  function getTodayDayOfWeek(): DayOfWeek {
+    const jsDay = new Date().getDay(); // 0=dom, 1=lun, …
+    return (jsDay === 0 ? 7 : jsDay) as DayOfWeek;
+  }
+
+  const selectedDay = ref<DayOfWeek>(getTodayDayOfWeek());
+
   const todayWeekId = computed(() => getCurrentWeekId());
 
   async function loadCurrentWeek(): Promise<void> {
@@ -32,6 +51,9 @@ export const useSettimanaStore = defineStore('settimana', () => {
 
   async function navigateTo(weekId: string): Promise<void> {
     currentWeekId.value = weekId;
+    // Reset selected day: today if in current week, else Monday
+    const isThisWeek = weekId === getCurrentWeekId();
+    selectedDay.value = isThisWeek ? getTodayDayOfWeek() : 1;
     await loadCurrentWeek();
   }
 
@@ -66,9 +88,12 @@ export const useSettimanaStore = defineStore('settimana', () => {
     week,
     loading,
     showOptionalMeals,
+    dailyView,
+    selectedDay,
     todayWeekId,
     currentMonday,
     setShowOptionalMeals,
+    setDailyView,
     loadCurrentWeek,
     goToNextWeek,
     goToPrevWeek,

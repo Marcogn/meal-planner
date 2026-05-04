@@ -120,7 +120,8 @@
 
 ## Fase 7 — Rifinitura
 
-- [ ] **T7.1** Vista giornaliera (toggle dalla vista settimanale): un solo giorno espanso, gli altri come piccoli summary.
+- [x] **T7.1** Vista giornaliera (toggle dalla vista settimanale): un solo giorno espanso, gli altri come piccoli summary.
+  - Toggle "📆 Giorno / 📅 Settimana" nella barra navigazione. Stato persistito in localStorage (`menuPlanner.dailyView`). Vista giornaliera: 7 day-tab cliccabili (nome + data + dot se ci sono piatti), pannello espanso per il giorno selezionato con tutti i pasti/slot. Il giorno selezionato di default è oggi (se settimana corrente) o lunedì. Tutte le azioni (add/edit/delete piatto) funzionano anche in daily view.
 - [ ] **T7.2** Audit accessibilità: navigazione tastiera, contrasti, screen reader sugli stati "sforato".
 - [ ] **T7.3** Audit Lighthouse: PWA score, performance, accessibilità. Fix dei major.
 - [ ] **T7.4** Test su Safari iOS reale: installazione "Add to Home Screen", apertura offline, persistenza dopo 7+ giorni di non utilizzo (può essere documentato in checklist manuale).
