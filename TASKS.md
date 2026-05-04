@@ -8,21 +8,20 @@
 
 ## Stack scelto
 
-> _Da compilare dall'agente al task 0._
-
-- Framework:
-- Linguaggio: TypeScript
-- Build tool:
-- Styling:
-- State management:
-- Routing:
-- Motivazione (2-3 righe):
+- Framework: **Vue 3** (Composition API + `<script setup>`)
+- Linguaggio: **TypeScript** (strict mode)
+- Build tool: **Vite** + `vite-plugin-pwa`
+- Styling: **CSS scoped** (CSS modules per componenti, CSS custom properties globali)
+- State management: **Pinia**
+- Routing: **Vue Router 4** (hash history per compatibilità GitHub Pages)
+- Motivazione: Vue era già presente nel progetto iniziale con tutta la toolchain configurata (Vite, Pinia, Vue Router, vite-plugin-pwa). Pinia è il sostituto ufficiale di Vuex e ha un'API più semplice di Zustand per Vue. Hash history evita problemi di 404 su static host senza configurazione server-side.
 
 ---
 
 ## Fase 0 — Setup
 
-- [ ] **T0.1** Inizializzare progetto Vite + TS + framework scelto. Configurare ESLint + Prettier. Verificare che `npm run dev` apra una pagina vuota e `npm run build` produca `dist/`.
+- [x] **T0.1** Inizializzare progetto Vite + TS + framework scelto. Configurare ESLint + Prettier. Verificare che `npm run dev` apra una pagina vuota e `npm run build` produca `dist/`.
+  - Stack: Vue 3 + Vite + TS + Pinia + Vue Router. ESLint migrato a flat config (v10). Build e test passano.
 - [ ] **T0.2** Configurare PWA: `vite-plugin-pwa` (o equivalente), `manifest.json`, icone placeholder (512, 192, apple-touch 180). Aggiungere meta tag iOS in `index.html`. Verificare che Lighthouse o equivalente confermi "Installable".
 - [ ] **T0.3** Configurare Vitest. Scrivere un test sentinella `describe('sanity', () => it('runs', () => expect(1).toBe(1)))` e farlo passare.
 - [ ] **T0.4** Creare struttura cartelle come da `ARCHITECTURE.md` sezione 3. File vuoti o stub.
