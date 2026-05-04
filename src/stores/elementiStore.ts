@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { Element, FrequencyLimit } from '../domain/types';
+import type { Element, FrequencyLimit, ID } from '../domain/types';
 import {
   getAllElements,
   createElement,
+  updateElement,
+  deleteElement,
   ElementValidationError,
 } from '../storage/elements';
+import { countDishesUsingElement, removeElementFromAllWeeks } from '../storage/weeks';
 
 export { ElementValidationError };
 
@@ -30,5 +33,23 @@ export const useElementiStore = defineStore('elementi', () => {
     await load();
   }
 
-  return { elements, loading, load, create };
+  async function update(
+    id: ID,
+    data: Partial<Pick<Element, 'name' | 'maxFrequencyPerWeek'>>,
+  ): Promise<void> {
+    await updateElement(id, data);
+    await load();
+  }
+
+  async function countUsage(id: ID): Promise<number> {
+    return countDishesUsingElement(id);
+  }
+
+  async function remove(id: ID): Promise<void> {
+    await removeElementFromAllWeeks(id);
+    await deleteElement(id);
+    await load();
+  }
+
+  return { elements, loading, load, create, update, remove, countUsage };
 });

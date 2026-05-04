@@ -1,16 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useElementiStore, ElementValidationError } from '../stores/elementiStore';
-import type { FrequencyLimit } from '../domain/types';
+import type { Element, FrequencyLimit } from '../domain/types';
 
 const store = useElementiStore();
 
-// ---- form creazione ----
-const showForm = ref(false);
-const formName = ref('');
-const formFreq = ref<FrequencyLimit>(3);
-const formError = ref('');
-
+// ---- opzioni frequenza (riutilizzate da form crea e form edit) ----
 const FREQ_OPTIONS: Array<{ label: string; value: FrequencyLimit }> = [
   { label: '1', value: 1 },
   { label: '2', value: 2 },
@@ -22,33 +17,97 @@ const FREQ_OPTIONS: Array<{ label: string; value: FrequencyLimit }> = [
 
 onMounted(() => store.load());
 
-function openForm() {
-  formName.value = '';
-  formFreq.value = 3;
-  formError.value = '';
-  showForm.value = true;
+function freqLabel(limit: FrequencyLimit): string {
+  return limit === 'unlimited' ? '∞' : String(limit);
 }
 
-function closeForm() {
-  showForm.value = false;
+// ---- form creazione ----
+const showCreateForm = ref(false);
+const createName = ref('');
+const createFreq = ref<FrequencyLimit>(3);
+const createError = ref('');
+
+function openCreateForm() {
+  createName.value = '';
+  createFreq.value = 3;
+  createError.value = '';
+  showCreateForm.value = true;
 }
 
-async function submitForm() {
-  formError.value = '';
+function closeCreateForm() {
+  showCreateForm.value = false;
+}
+
+async function submitCreate() {
+  createError.value = '';
   try {
-    await store.create({ name: formName.value, maxFrequencyPerWeek: formFreq.value });
-    closeForm();
+    await store.create({ name: createName.value, maxFrequencyPerWeek: createFreq.value });
+    closeCreateForm();
   } catch (e) {
     if (e instanceof ElementValidationError) {
-      formError.value = e.message;
+      createError.value = e.message;
     } else {
-      formError.value = 'Errore imprevisto. Riprova.';
+      createError.value = 'Errore imprevisto. Riprova.';
     }
   }
 }
 
-function freqLabel(limit: FrequencyLimit): string {
-  return limit === 'unlimited' ? '∞' : String(limit);
+// ---- form modifica ----
+const showEditForm = ref(false);
+const editId = ref('');
+const editName = ref('');
+const editFreq = ref<FrequencyLimit>(3);
+const editError = ref('');
+
+function openEditForm(el: Element) {
+  editId.value = el.id;
+  editName.value = el.name;
+  editFreq.value = el.maxFrequencyPerWeek;
+  editError.value = '';
+  showEditForm.value = true;
+}
+
+function closeEditForm() {
+  showEditForm.value = false;
+}
+
+async function submitEdit() {
+  editError.value = '';
+  try {
+    await store.update(editId.value, {
+      name: editName.value,
+      maxFrequencyPerWeek: editFreq.value,
+    });
+    closeEditForm();
+  } catch (e) {
+    if (e instanceof ElementValidationError) {
+      editError.value = e.message;
+    } else {
+      editError.value = 'Errore imprevisto. Riprova.';
+    }
+  }
+}
+
+// ---- dialog conferma eliminazione ----
+const showDeleteConfirm = ref(false);
+const deleteId = ref('');
+const deleteName = ref('');
+const deleteUsageCount = ref(0);
+
+async function openDeleteConfirm(el: Element) {
+  deleteId.value = el.id;
+  deleteName.value = el.name;
+  deleteUsageCount.value = await store.countUsage(el.id);
+  showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+  showDeleteConfirm.value = false;
+}
+
+async function confirmDelete() {
+  await store.remove(deleteId.value);
+  closeDeleteConfirm();
 }
 </script>
 
@@ -56,7 +115,7 @@ function freqLabel(limit: FrequencyLimit): string {
   <div>
     <div class="toolbar">
       <h2>Elementi</h2>
-      <button class="btn-primary" @click="openForm">+ Nuovo elemento</button>
+      <button class="btn-primary" @click="openCreateForm">+ Nuovo elemento</button>
     </div>
 
     <!-- Lista -->
@@ -66,37 +125,90 @@ function freqLabel(limit: FrequencyLimit): string {
         <span class="element-freq">
           Max: <strong>{{ freqLabel(el.maxFrequencyPerWeek) }}</strong>/sett.
         </span>
+        <div class="element-actions">
+          <button class="btn-icon" title="Modifica" @click="openEditForm(el)">✏️</button>
+          <button class="btn-icon btn-danger" title="Elimina" @click="openDeleteConfirm(el)">🗑️</button>
+        </div>
       </li>
     </ul>
     <p v-else class="empty-state">Nessun elemento ancora — aggiungine uno.</p>
 
     <!-- Form creazione -->
-    <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="form-title">
-        <h3 id="form-title">Nuovo elemento</h3>
+    <div v-if="showCreateForm" class="modal-overlay" @click.self="closeCreateForm">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="create-title">
+        <h3 id="create-title">Nuovo elemento</h3>
 
-        <label for="el-name">Nome *</label>
+        <label for="create-name">Nome *</label>
         <input
-          id="el-name"
-          v-model="formName"
+          id="create-name"
+          v-model="createName"
           type="text"
           placeholder="es. formaggio"
           autocomplete="off"
-          @keyup.enter="submitForm"
+          @keyup.enter="submitCreate"
         />
 
-        <label for="el-freq">Frequenza massima settimanale *</label>
-        <select id="el-freq" v-model="formFreq">
+        <label for="create-freq">Frequenza massima settimanale *</label>
+        <select id="create-freq" v-model="createFreq">
           <option v-for="opt in FREQ_OPTIONS" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
         </select>
 
-        <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+        <p v-if="createError" class="form-error" role="alert">{{ createError }}</p>
 
         <div class="form-actions">
-          <button class="btn-primary" @click="submitForm">Salva</button>
-          <button @click="closeForm">Annulla</button>
+          <button class="btn-primary" @click="submitCreate">Salva</button>
+          <button @click="closeCreateForm">Annulla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form modifica -->
+    <div v-if="showEditForm" class="modal-overlay" @click.self="closeEditForm">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <h3 id="edit-title">Modifica elemento</h3>
+
+        <label for="edit-name">Nome *</label>
+        <input
+          id="edit-name"
+          v-model="editName"
+          type="text"
+          autocomplete="off"
+          @keyup.enter="submitEdit"
+        />
+
+        <label for="edit-freq">Frequenza massima settimanale *</label>
+        <select id="edit-freq" v-model="editFreq">
+          <option v-for="opt in FREQ_OPTIONS" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+
+        <p v-if="editError" class="form-error" role="alert">{{ editError }}</p>
+
+        <div class="form-actions">
+          <button class="btn-primary" @click="submitEdit">Salva</button>
+          <button @click="closeEditForm">Annulla</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dialog conferma eliminazione -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="closeDeleteConfirm">
+      <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+        <h3 id="delete-title">Elimina elemento</h3>
+        <p>
+          Vuoi eliminare <strong>{{ deleteName }}</strong>?
+        </p>
+        <p v-if="deleteUsageCount > 0" class="delete-warning">
+          ⚠️ Questo elemento è usato in
+          <strong>{{ deleteUsageCount }} {{ deleteUsageCount === 1 ? 'piatto' : 'piatti' }}</strong>.
+          I piatti resteranno, perderanno solo questo elemento.
+        </p>
+        <div class="form-actions">
+          <button class="btn-danger-solid" @click="confirmDelete">Elimina</button>
+          <button @click="closeDeleteConfirm">Annulla</button>
         </div>
       </div>
     </div>
@@ -130,6 +242,36 @@ function freqLabel(limit: FrequencyLimit): string {
   background: #155e15;
 }
 
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.25rem 0.4rem;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 4px;
+}
+
+.btn-icon:hover {
+  background: #f0f0f0;
+}
+
+.btn-danger-solid {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.btn-danger-solid:hover {
+  background: #a93226;
+}
+
 .element-list {
   list-style: none;
   padding: 0;
@@ -139,8 +281,7 @@ function freqLabel(limit: FrequencyLimit): string {
 .element-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid #eee;
   gap: 0.5rem;
 }
@@ -156,10 +297,20 @@ function freqLabel(limit: FrequencyLimit): string {
   white-space: nowrap;
 }
 
+.element-actions {
+  display: flex;
+  gap: 0.1rem;
+}
+
 .empty-state {
   color: #888;
   font-style: italic;
   margin-top: 1rem;
+}
+
+.delete-warning {
+  color: #c0392b;
+  font-size: 0.9rem;
 }
 
 /* modal */
@@ -213,3 +364,4 @@ function freqLabel(limit: FrequencyLimit): string {
   margin-top: 0.5rem;
 }
 </style>
+
