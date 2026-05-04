@@ -171,16 +171,22 @@ export async function exportAll(): Promise<Blob> {
   return new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
 }
 
-// ---- Import ----
+// ---- Import (helpers) ----
 
 /**
- * Legge il file JSON, valida formato e schema, poi sovrascrive atomicamente
- * il DB (elementi + settimane) con i dati del backup.
+ * Legge un `File`, esegue il parse JSON e la validazione Zod, e ritorna il
+ * `BackupData` validato senza scrivere nulla nel DB.
  *
- * Lancia `BackupImportError` con un messaggio localizzato in italiano in caso
- * di errore di lettura, formato sconosciuto, versione non supportata o schema non valido.
+ * Estratto come helper privato per essere condiviso tra `importAll` (backup)
+ * e `parseSharedFile` (condivisione menù, T6.3).
+ *
+ * Lancia `BackupImportError` con messaggio localizzato in caso di:
+ * - errore di lettura
+ * - JSON malformato
+ * - formato o versione non riconosciuti
+ * - schema Zod non valido
  */
-export async function importAll(file: File): Promise<void> {
+async function readAndValidate(file: File): Promise<BackupData> {
   // 1. Lettura del file
   let text: string;
   try {
@@ -217,12 +223,39 @@ export async function importAll(file: File): Promise<void> {
   const result = BackupDataSchema.safeParse(raw);
   if (!result.success) {
     const first = result.error.issues[0];
-    const detail = first ? `${first.path.join('.') || 'radice'}: ${first.message}` : 'errore sconosciuto';
+    const detail = first
+      ? `${first.path.join('.') || 'radice'}: ${first.message}`
+      : 'errore sconosciuto';
     throw new BackupImportError(`Schema non valido — ${detail}.`);
   }
-  const data = result.data;
 
-  // 6. Sovrascrittura atomica
+  return result.data;
+}
+
+// ---- Import (API pubblica) ----
+
+/**
+ * Valida un file di condivisione o backup **senza** scrivere nel DB.
+ * Usato per mostrare l'anteprima del menù ricevuto prima di decidere
+ * come importarlo (T6.3).
+ *
+ * Lancia `BackupImportError` se il file non è valido.
+ */
+export async function parseSharedFile(file: File): Promise<BackupData> {
+  return readAndValidate(file);
+}
+
+/**
+ * Legge il file JSON, valida formato e schema, poi sovrascrive atomicamente
+ * il DB (elementi + settimane) con i dati del backup.
+ *
+ * Lancia `BackupImportError` con un messaggio localizzato in italiano in caso
+ * di errore di lettura, formato sconosciuto, versione non supportata o schema non valido.
+ */
+export async function importAll(file: File): Promise<void> {
+  const data = await readAndValidate(file);
+
+  // Sovrascrittura atomica
   await appDb.transaction('rw', [appDb.elements, appDb.weeks], async () => {
     await appDb.elements.clear();
     await appDb.weeks.clear();

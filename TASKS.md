@@ -105,8 +105,10 @@
 
 - [x] **T6.1** `exportWeek(weekId)` e `exportWeeks(weekIds)`: ritorna blob JSON con elements referenziati + weeks.
   - `exportWeeks(weekIds)` in `backup.ts`: legge solo le settimane richieste, raccoglie gli elementId referenziati, include solo quegli Elementi. `exportWeek` è un wrapper di convenienza. 8 nuovi test (settimane mancanti, elementi deduplicati, elementi eliminati, ecc.) — 106 test totali passano.
-- [ ] **T6.2** UI: dalla vista settimanale, pulsante "Condividi" con opzioni "questa settimana" / "intervallo".
-- [ ] **T6.3** UI Import condivisione: file picker, parsing, anteprima del menù ricevuto.
+- [x] **T6.2** UI: dalla vista settimanale, pulsante "Condividi" con opzioni "questa settimana" / "intervallo".
+  - `CondividiModal.vue`: radio "Questa settimana" / "Scegli settimane" (checkboxes ±4 settimane attorno alla corrente). Conferma → `exportWeeks()` + download JSON. Pulsante "📤 Condividi" aggiunto a `WeekView.vue` nella barra di navigazione.
+- [x] **T6.3** UI Import condivisione: file picker, parsing, anteprima del menù ricevuto.
+  - `parseSharedFile(file)` aggiunto a `backup.ts` (refactoring: helper privato `readAndValidate` condiviso con `importAll`). `ImportaMenuModal.vue`: file picker → parse → anteprima (settimane, piatti per slot, elementi referenziati). Pulsante "📥 Importa" in `WeekView.vue`. Emette `confirm(BackupData)` per T6.4. 106 test passano.
 - [ ] **T6.4** Modalità import: radio "Sovrascrivi tutto" / "Scegli slot per slot".
 - [ ] **T6.5** Modalità granulare: per ogni `(giorno, pasto)` con piatto importabile, checkbox per accettare. Default: tutti spuntati.
 - [ ] **T6.6** Gestione Elementi mancanti: se il file referenzia Elementi che non esistono localmente, dialog "Aggiungi questi N elementi al tuo archivio?". Conflitti di nome con frequenze diverse → sub-dialog "tieni il tuo / sovrascrivi / rinomina".
