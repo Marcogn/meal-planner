@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useDishesStore } from '../stores/dishesStore';
-import type { Dish, ProteinCategory } from '../domain/types';
+import type { Dish, ProteinCategory } from '../domain/types-legacy';
 import { v4 as uuidv4 } from 'uuid';
 
 const ALL_CATEGORIES: ProteinCategory[] = [

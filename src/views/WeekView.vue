@@ -4,7 +4,7 @@ import { useMenuStore } from '../stores/menuStore';
 import { useDishesStore } from '../stores/dishesStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { rankSuggestions } from '../domain/ranker';
-import type { Meal, MealSlot, ProteinCategory } from '../domain/types';
+import type { Meal, MealSlot, ProteinCategory } from '../domain/types-legacy';
 import { v4 as uuidv4 } from 'uuid';
 
 function getIsoWeekFromDate(d: Date): string {

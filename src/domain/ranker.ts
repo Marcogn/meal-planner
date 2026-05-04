@@ -1,4 +1,4 @@
-import type { Dish, WeeklyMenu, Settings, ScoredDish, ProteinCategory } from './types';
+import type { Dish, WeeklyMenu, Settings, ScoredDish, ProteinCategory } from './types-legacy';
 
 function countCategoryInMenu(
   menu: WeeklyMenu,

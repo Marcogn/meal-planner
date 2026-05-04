@@ -58,14 +58,14 @@ Lo stack è stato fissato in T0.1 e **non si cambia** a metà progetto (vedi `TA
 │   └── favicon.svg
 ├── src/
 │   ├── domain/             # logica di business pura, zero dipendenze da Vue/Dexie/DOM
-│   │   ├── types.ts        # Element, Dish, MealSlot, Week, MealType (nuovo modello — T1.1)
-│   │   ├── frequency.ts    # computeWeeklyFrequencies() — T1.3
-│   │   ├── week.ts         # getCurrentWeekId(), nextWeek(), ecc. — T1.2
+│   │   ├── types.ts        # Element, Dish, MealSlot, Week, MealType (nuovo modello — ✅ T1.1)
+│   │   ├── week.ts         # getCurrentWeekId(), nextWeek(), weekIdToMonday(), ecc. — ✅ T1.2
+│   │   ├── frequency.ts    # computeWeeklyFrequencies() — ✅ T1.3
 │   │   ├── ranker.ts       # rankSuggestions() — ordinamento suggerimenti
 │   │   ├── validator.ts    # validateWeek() — verifica vincoli
 │   │   └── __tests__/      # test unitari Vitest
 │   ├── storage/            # CRUD IndexedDB (nuovo layer — T1.4–T1.6)
-│   │   ├── db.ts           # apertura DB, schema v1, migrazioni
+│   │   ├── db.ts           # AppDB (Dexie), DB name MenuPlannerV2, schema v1 — ✅ T1.4
 │   │   ├── elements.ts     # CRUD Elementi
 │   │   ├── weeks.ts        # CRUD Settimane/Slot/Piatti
 │   │   └── backup.ts       # export/import JSON

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { Settings } from '../domain/types';
+import type { Settings } from '../domain/types-legacy';
 import * as repo from '../data/settingsRepository';
 
 export const useSettingsStore = defineStore('settings', () => {

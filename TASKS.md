@@ -31,18 +31,25 @@
 
 ## Fase 1 — Dominio e storage
 
-- [ ] **T1.1** Definire tipi in `src/domain/types.ts` come da `ARCHITECTURE.md` sezione 4. Esportare tutti. **Nota: NO entità `Category` separata.**
-- [ ] **T1.2** Implementare `src/domain/week.ts`: funzioni `getCurrentWeekId()`, `getWeekStart(date)`, `nextWeek(weekId)`, `prevWeek(weekId)`, `formatWeekLabel(weekId)`. **Test obbligatori** (casi: cambio anno, settimana ISO 53, ecc.).
-- [ ] **T1.3** Implementare `src/domain/frequency.ts`: funzione `computeWeeklyFrequencies(week, elements)` che ritorna `Map<elementId, { used: number, max: FrequencyLimit, exceeded: boolean }>`. **Test obbligatori**:
+- [x] **T1.1** Definire tipi in `src/domain/types.ts` come da `ARCHITECTURE.md` sezione 4. Esportare tutti. **Nota: NO entità `Category` separata.**
+  - Nuovo modello: `ID`, `FrequencyLimit`, `Element`, `MealType`, `DayOfWeek`, `Dish`, `MealSlot`, `Week`. Vecchi tipi spostati in `types-legacy.ts` per compatibilità con code base preesistente.
+- [x] **T1.2** Implementare `src/domain/week.ts`: funzioni `getCurrentWeekId()`, `getWeekStart(date)`, `nextWeek(weekId)`, `prevWeek(weekId)`, `formatWeekLabel(weekId)`. **Test obbligatori** (casi: cambio anno, settimana ISO 53, ecc.).
+  - Implementate tutte le funzioni con logica ISO 8601 corretta. Aggiunta `weekIdToMonday()` come inversa di `getCurrentWeekId()`. 24 test passano (cambio anno, W53, round-trip, padding, ecc.).
+- [x] **T1.3** Implementare `src/domain/frequency.ts`: funzione `computeWeeklyFrequencies(week, elements)` che ritorna `Map<elementId, { used: number, max: FrequencyLimit, exceeded: boolean }>`. **Test obbligatori**:
   - caso vuoto → tutti gli Elementi a `used: 0`
   - caso sforato → `exceeded: true` quando `used > max` (e `max != 'unlimited'`)
   - caso unlimited → mai `exceeded: true`
   - stesso Elemento in più piatti diversi → conta `n`
   - stesso Elemento ripetuto nello stesso piatto → conta `1`
-- [ ] **T1.4** Implementare `src/storage/db.ts`: apertura IndexedDB con **Dexie**, schema v1 (2 store: `elements`, `weeks`), migrazione iniziale.
-- [ ] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
-- [ ] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
-- [ ] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
+  - 11 test passano. Gestito anche il caso limite: Elemento referenziato ma non più in archivio → voce con `max:'unlimited', exceeded:false`.
+- [x] **T1.4** Implementare `src/storage/db.ts`: apertura IndexedDB con **Dexie**, schema v1 (2 store: `elements`, `weeks`), migrazione iniziale.
+  - Classe `AppDB extends Dexie`, DB name `MenuPlannerV2` (separato dal legacy). Singleton `appDb` esportato. Build passa.
+- [x] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
+  - `createElement`, `getAllElements`, `getElementById`, `updateElement`, `deleteElement`. `ElementValidationError` per nome vuoto/duplicato. 20 test passano (fake-indexeddb).
+- [x] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
+  - `getWeek`, `getOrCreateWeek`, `addDishToSlot`, `removeDishFromSlot`, `removeElementFromAllWeeks`. 16 test passano (fake-indexeddb).
+- [x] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
+  - Chiamata con optional chaining (`navigator.storage?.persist`). Log via `console.log`.
 
 ## Fase 2 — UI: Elementi (tab "Elementi")
 

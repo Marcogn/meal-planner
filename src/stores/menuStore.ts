@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { Meal, WeeklyMenu } from '../domain/types';
+import type { Meal, WeeklyMenu } from '../domain/types-legacy';
 import * as repo from '../data/menuRepository';
 
 export const useMenuStore = defineStore('menu', () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useSettingsStore } from '../stores/settingsStore';
-import type { FrequencyConstraint, ProteinCategory } from '../domain/types';
+import type { FrequencyConstraint, ProteinCategory } from '../domain/types-legacy';
 
 const ALL_CATEGORIES: ProteinCategory[] = [
   'CARNE_ROSSA',

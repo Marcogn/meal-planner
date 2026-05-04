@@ -4,7 +4,7 @@ import type {
   FrequencyConstraint,
   ConstraintViolation,
   ProteinCategory,
-} from './types';
+} from './types-legacy';
 
 export function validateWeek(
   menu: WeeklyMenu,

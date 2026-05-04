@@ -1,5 +1,5 @@
 import { db } from './db';
-import type { Settings } from '../domain/types';
+import type { Settings } from '../domain/types-legacy';
 
 const SETTINGS_ID = 1;
 

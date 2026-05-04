@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Dish, Meal, Settings } from '../domain/types';
+import type { Dish, Meal, Settings } from '../domain/types-legacy';
 
 export interface MealRecord extends Meal {
   isoWeek: string;
