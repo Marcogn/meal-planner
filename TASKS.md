@@ -39,10 +39,10 @@
   - caso unlimited → mai `exceeded: true`
   - stesso Elemento in più piatti diversi → conta `n`
   - stesso Elemento ripetuto nello stesso piatto → conta `1`
-- [ ] **T1.4** Implementare `src/storage/db.ts`: apertura IndexedDB con `idb`, schema v1 (2 store: `elements`, `weeks`), migrazione iniziale.
+- [ ] **T1.4** Implementare `src/storage/db.ts`: apertura IndexedDB con **Dexie**, schema v1 (2 store: `elements`, `weeks`), migrazione iniziale.
 - [ ] **T1.5** Implementare CRUD `src/storage/elements.ts`. **Test** (creazione, lettura, update, delete, validazione: nome non vuoto, no duplicati di nome).
 - [ ] **T1.6** Implementare CRUD `src/storage/weeks.ts`: get/put settimana, aggiungi/rimuovi piatto da slot, gestione cleanup quando si elimina un Elemento referenziato. **Test**.
-- [ ] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.tsx`. Loggare il risultato.
+- [ ] **T1.7** Implementare `navigator.storage.persist()` al primo avvio in `main.ts`. Loggare il risultato.
 
 ## Fase 2 — UI: Elementi (tab "Elementi")
 
