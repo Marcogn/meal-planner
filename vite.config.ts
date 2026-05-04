@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/menu-planner/',
   plugins: [
     vue(),
     VitePWA({
@@ -15,12 +16,13 @@ export default defineConfig({
         theme_color: '#2c6e49',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/',
+        start_url: '/menu-planner/',
+        scope: '/menu-planner/',
         lang: 'it',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-          { src: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+          { src: '/menu-planner/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+          { src: '/menu-planner/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: '/menu-planner/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
         ],
       },
       workbox: {
