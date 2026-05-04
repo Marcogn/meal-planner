@@ -37,45 +37,55 @@
 - Tutte le azioni eseguibili da tastiera.
 - Touch target ≥ 44×44px su mobile.
 
-## 2. Stack: linee guida (l'agente sceglie il dettaglio)
+## 2. Stack scelto
 
-L'agente può scegliere lo stack ma deve preferire:
+Lo stack è stato fissato in T0.1 e **non si cambia** a metà progetto (vedi `TASKS.md` sezione "Stack scelto"):
 
-- **Framework**: React, Svelte, o vanilla TS. **No Angular** (overkill). **No Vue** se non c'è motivo specifico (preferire React per ecosistema PWA/idb più maturo, o Svelte per bundle size).
-- **Lingua**: **TypeScript obbligatorio**. Tipi rigorosi (no `any` se non motivato in commento).
-- **Build tool**: **Vite** consigliato (PWA plugin maturo: `vite-plugin-pwa`). Webpack accettato solo se motivato.
-- **Styling**: a scelta tra CSS modules, Tailwind, o vanilla CSS con custom properties. Evitare CSS-in-JS pesanti (styled-components ecc.) che gonfiano il bundle.
-- **State management**: per la dimensione del progetto, basta context React + useReducer, oppure Zustand. **Niente Redux**.
-- **Routing**: React Router o equivalente, oppure routing custom semplice (sono poche viste).
+- **Framework**: **Vue 3** (Composition API + `<script setup>`). Vue era già presente nel progetto iniziale con tutta la toolchain configurata.
+- **Lingua**: **TypeScript** (strict mode). Tipi rigorosi, no `any` non motivato.
+- **Build tool**: **Vite** + `vite-plugin-pwa`.
+- **Styling**: **CSS scoped** con CSS custom properties globali. Niente CSS-in-JS.
+- **State management**: **Pinia** (sostituto ufficiale di Vuex, API più semplice).
+- **Routing**: **Vue Router 4** con hash history (compatibile con static hosting senza config server-side).
+- **Persistenza**: **Dexie** (wrapper Dexie.js su IndexedDB). `idb` o Dexie sono entrambi accettabili; Dexie è già installato.
 
-> L'agente deve **scrivere in cima a `TASKS.md` lo stack scelto** prima del task 0, motivando in 2-3 righe.
-
-## 3. Struttura di progetto consigliata
+## 3. Struttura di progetto (reale)
 
 ```
 /
 ├── public/
-│   ├── icons/              # icone PWA (192, 512, apple-touch)
-│   └── manifest.json       # generato o statico
+│   ├── icons/              # icone PWA (192×192, 512×512, 180×180 apple-touch)
+│   └── favicon.svg
 ├── src/
-│   ├── domain/             # tipi e logica di business pura, no UI
-│   │   ├── types.ts        # Element, Dish, MealSlot, Week, MealType
-│   │   ├── frequency.ts    # calcolo frequenze settimanali
-│   │   └── week.ts         # utility lun-dom, navigazione
-│   ├── storage/            # accesso IndexedDB
-│   │   ├── db.ts           # apertura DB, schema, migrazioni
+│   ├── domain/             # logica di business pura, zero dipendenze da Vue/Dexie/DOM
+│   │   ├── types.ts        # Element, Dish, MealSlot, Week, MealType (nuovo modello — T1.1)
+│   │   ├── frequency.ts    # computeWeeklyFrequencies() — T1.3
+│   │   ├── week.ts         # getCurrentWeekId(), nextWeek(), ecc. — T1.2
+│   │   ├── ranker.ts       # rankSuggestions() — ordinamento suggerimenti
+│   │   ├── validator.ts    # validateWeek() — verifica vincoli
+│   │   └── __tests__/      # test unitari Vitest
+│   ├── storage/            # CRUD IndexedDB (nuovo layer — T1.4–T1.6)
+│   │   ├── db.ts           # apertura DB, schema v1, migrazioni
 │   │   ├── elements.ts     # CRUD Elementi
 │   │   ├── weeks.ts        # CRUD Settimane/Slot/Piatti
 │   │   └── backup.ts       # export/import JSON
-│   ├── ui/
-│   │   ├── components/     # componenti riutilizzabili
-│   │   ├── pages/          # ElementsPage, WeekPage, ImportPage
-│   │   └── App.tsx
-│   ├── sw.ts               # service worker
-│   └── main.tsx            # entry point
-├── tests/                  # Vitest
+│   ├── data/               # repository Dexie esistenti (schema precedente)
+│   │   ├── db.ts
+│   │   ├── dishRepository.ts
+│   │   ├── menuRepository.ts
+│   │   └── settingsRepository.ts
+│   ├── stores/             # Pinia stores (bridge UI ↔ data)
+│   ├── views/              # pagine Vue: WeekView, DishesView, SettingsView, ImportExportView
+│   ├── components/         # componenti riutilizzabili (IosInstallBanner, ecc.)
+│   ├── io/                 # schema Zod per import/export JSON
+│   ├── router/             # Vue Router (hash history)
+│   ├── __tests__/          # test cross-cutting (sanity, ecc.)
+│   ├── App.vue
+│   ├── main.ts             # entry point
+│   └── style.css
 ├── index.html
 ├── vite.config.ts
+├── vitest.config.ts
 ├── tsconfig.json
 └── package.json
 ```
